@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>משחקי ילדים</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <div class="page">
+
+    <header class="site-header">
+      <h1>🎮 משחקי ילדים 🎮</h1>
+      <p class="subtitle">בחר משחק והתחל לשחק!</p>
+    </header>
+
+    <main class="games-grid" id="games-grid">
+      <!-- Cards are injected by JavaScript from games.js -->
+    </main>
+
+    <footer class="site-footer">
+      <p>עוד משחקים בקרוב...</p>
+    </footer>
+
+  </div>
+
+  <script src="games.js"></script>
+  <script>
+    const grid = document.getElementById('games-grid');
+
+    if (!GAMES || GAMES.length === 0) {
+      grid.innerHTML = '<p class="empty-msg">אין משחקים זמינים כרגע.</p>';
+    } else {
+      GAMES.forEach(game => {
+        const card = document.createElement('a');
+        card.href      = game.path;
+        card.className = 'game-card';
+        card.style.background = game.color;
+        card.innerHTML = `
+          <div class="card-icon">${game.icon}</div>
+          <div class="card-body">
+            <h2 class="card-title">${game.title}</h2>
+            <p class="card-desc">${game.desc}</p>
+          </div>
+          <div class="card-arrow">◄</div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+  </script>
+
+</body>
+</html>

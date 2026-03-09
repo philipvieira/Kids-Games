@@ -291,6 +291,21 @@ body { font-family: 'Segoe UI', Arial, sans-serif; overflow: hidden; background:
 }
 .btn-menu:hover { background: rgba(255,255,255,.25); }
 
+/* Back to main menu link in game menu */
+.btn-back-menu {
+  display: inline-block; margin-top: 10px;
+  padding: 10px 24px; font-size: 1rem; font-weight: bold;
+  background: rgba(255,255,255,.08); color: rgba(255,255,255,.7);
+  border: 2px solid rgba(255,255,255,.2); border-radius: 50px;
+  text-decoration: none; cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.btn-back-menu:hover {
+  background: rgba(255,255,255,.18);
+  color: #fff;
+  border-color: rgba(255,255,255,.5);
+}
+
 /* ─── Game Over Screen ─── */
 #gameover-screen { background: rgba(0,0,0,.9); z-index: 50; }
 .gameover-content {
