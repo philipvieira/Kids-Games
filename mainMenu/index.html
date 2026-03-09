@@ -10,6 +10,15 @@
 
   <div class="page">
 
+    <!-- Splash overlay — dismissed on first tap, unlocks audio -->
+    <div class="splash-overlay" id="splash">
+      <div class="splash-content">
+        <div class="splash-icon">🎮</div>
+        <h2>משחקי ילדים</h2>
+        <p>לחץ להתחיל</p>
+      </div>
+    </div>
+
     <header class="site-header">
       <h1>🎮 משחקי ילדים 🎮</h1>
       <p class="subtitle">בחר משחק והתחל לשחק!</p>
@@ -27,6 +36,20 @@
 
   <script src="games.js"></script>
   <script>
+    // ── Music ──────────────────────────────────────────
+    const menuMusic = new Audio('intro.mp3');
+    menuMusic.loop   = true;
+    menuMusic.volume = 0.55;
+
+    // ── Splash overlay — forces a user gesture to unlock audio ──
+    const splash = document.getElementById('splash');
+    splash.addEventListener('click', () => {
+      menuMusic.play().catch(() => {});
+      splash.classList.add('hidden');
+      splash.addEventListener('transitionend', () => splash.remove(), { once: true });
+    }, { once: true });
+
+    // ── Game cards ─────────────────────────────────────
     const grid = document.getElementById('games-grid');
 
     if (!GAMES || GAMES.length === 0) {
