@@ -28,7 +28,7 @@ let driverName   = 'נהג';
 let selectedCarType = 'sports';   // player-chosen car
 
 let player, trafficCars, powerups, particles;
-let score, timerSec, timerInterval;
+let score, totalScore, timerSec, timerInterval;
 let distanceTravelled, goalDistance;
 let gameRunning;
 let gamePaused = false;
@@ -38,6 +38,7 @@ let powerupsActive = {};   // { speed: {endTime, startTime}, invincible: {...}, 
 let loopId = null;
 let frameCount = 0;
 let lastPowerupSpawn = 0;
+let lastDistanceForScore = 0;  // tracks distance already counted into score
 
 // ─── Car type definitions ──────────────────────────────────────
 const CAR_TYPES = {
@@ -56,7 +57,9 @@ const TRAFFIC_VARIANTS = [
   { shape: 'truck',  colors: ['#e74c3c','#2c3e50','#16a085','#8e44ad'] },
 ];
 
-// ─── Resize ───────────────────────────────────────────────────
+// ─── Mobile detection (used for speed compensation) ───────────
+const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+               || (navigator.maxTouchPoints > 1 && window.innerWidth < 900);
 function resize() {
   W = canvas.width  = window.innerWidth;
   H = canvas.height = window.innerHeight;
@@ -148,11 +151,10 @@ function startGame() {
   driverName   = inp || 'נהג';
   currentLevel = 0;
   lives        = 3;
+  totalScore   = 0;
   document.body.style.overflow = 'hidden';
   initLevel(0);
   showScreen('game-screen');
-  // startMusic is called here — on mobile it will work because
-  // startGame() is always invoked from a button tap (user gesture).
   startMusic();
 }
 
@@ -169,9 +171,10 @@ function initLevel(lvl) {
   document.getElementById('pause-screen').classList.remove('active');
   const pauseBtn = document.getElementById('pause-btn');
   if (pauseBtn) pauseBtn.textContent = '⏸';
-  score             = 0;
-  distanceTravelled = 0;
-  goalDistance      = cfg.goalDist;
+  score                = 0;
+  lastDistanceForScore = 0;
+  distanceTravelled    = 0;
+  goalDistance         = cfg.goalDist;
   scrollY           = 0;
   bgOffset          = 0;
   moveLeft          = false;
@@ -188,7 +191,7 @@ function initLevel(lvl) {
     y        : H * 0.75,
     w        : laneW * carDef.wScale,
     h        : laneW * carDef.hScale,
-    speed    : BASE_SPEED * cfg.speedMult,
+    speed    : BASE_SPEED * cfg.speedMult * (IS_MOBILE ? 1.35 : 1.0),
     carType  : selectedCarType,
     bodyColor: carDef.bodyColor,
     roofColor: carDef.roofColor,
@@ -400,10 +403,14 @@ function update(ts) {
   scrollY  = (scrollY  + speed)       % H;
   bgOffset = (bgOffset + speed * 0.4) % H;
 
-  distanceTravelled += speed;
+  // Score: add distance delta each frame, multiplied by x2 if active.
+  // Using a delta prevents the score from dropping when x2 expires.
+  const delta  = speed;
   const x2Mult = powerupsActive.x2 ? 2 : 1;
-  score = Math.floor(distanceTravelled * x2Mult / 10);
-  document.getElementById('score').textContent = score;
+  score += delta * x2Mult / 10;
+  lastDistanceForScore += delta;
+  distanceTravelled    += delta;
+  document.getElementById('score').textContent = Math.floor(totalScore + score);
   // Update HUD progress bar
   const progEl = document.getElementById('progress-bar');
   if (progEl) progEl.style.width = Math.min(distanceTravelled / goalDistance * 100, 100) + '%';
@@ -1347,7 +1354,7 @@ function loseLife(msg) {
   lives--;
   updateLivesDisplay();
 
-  document.getElementById('gameover-score').textContent = score;
+  document.getElementById('gameover-score').textContent = Math.floor(totalScore + score);
 
   if (lives <= 0) {
     document.getElementById('gameover-title').textContent = '💀 אין יותר חיים!';
@@ -1366,7 +1373,8 @@ function loseLife(msg) {
 
 function triggerWin() {
   const bonus = timerSec * 5;
-  const total = score + bonus;
+  totalScore += score + bonus;
+  const total = Math.floor(totalScore);
 
   saveScore(driverName, total, currentLevel + 1);
 
@@ -1380,7 +1388,7 @@ function triggerWin() {
     'אלוף אמיתי! 🥇',
   ];
   document.getElementById('win-msg').textContent = msgs[currentLevel % msgs.length];
-  score = total;
+  // score is reset per level in initLevel; totalScore carries the cumulative total
 
   // Confetti
   const bg = document.getElementById('celebration-bg');
@@ -1447,55 +1455,74 @@ function renderHighScores() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  MUSIC
+//  MUSIC  (AudioContext — works on iOS Safari & Android Chrome)
 // ═══════════════════════════════════════════════════════════════
-let bgMusic = null;
-let musicUnlocked = false;
+let audioCtx      = null;
+let musicBuffer   = null;
+let musicSource   = null;
+let musicLoaded   = false;
+let musicWanted   = false;   // true once the player taps Start
 
-function _createMusic() {
-  if (bgMusic) return;
-  bgMusic = new Audio('8bit race.mp4');
-  bgMusic.loop   = true;
-  bgMusic.volume = 0.55;
+function _getAudioCtx() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return audioCtx;
+}
+
+// Fetch + decode the audio file once
+function _loadMusic() {
+  if (musicLoaded) return;
+  musicLoaded = true;
+  fetch('8bit race.mp4')
+    .then(r => r.arrayBuffer())
+    .then(buf => _getAudioCtx().decodeAudioData(buf))
+    .then(decoded => {
+      musicBuffer = decoded;
+      if (musicWanted) _playBuffer();
+    })
+    .catch(() => {});
+}
+
+function _playBuffer() {
+  if (!musicBuffer || !audioCtx) return;
+  if (musicSource) { try { musicSource.stop(); } catch(e) {} }
+  const src = audioCtx.createBufferSource();
+  src.buffer = musicBuffer;
+  src.loop   = true;
+  const gain = audioCtx.createGain();
+  gain.gain.value = 0.55;
+  src.connect(gain);
+  gain.connect(audioCtx.destination);
+  src.start(0);
+  musicSource = src;
 }
 
 function startMusic() {
-  _createMusic();
-  if (!bgMusic.paused) return;
-  const p = bgMusic.play();
-  if (p !== undefined) p.catch(() => {});
+  musicWanted = true;
+  const ctx = _getAudioCtx();
+  // Resume suspended context (required after user gesture on iOS)
+  if (ctx.state === 'suspended') {
+    ctx.resume().then(() => {
+      _loadMusic();
+      if (musicBuffer) _playBuffer();
+    }).catch(() => {});
+  } else {
+    _loadMusic();
+    if (musicBuffer) _playBuffer();
+  }
 }
 
 function stopMusic() {
-  if (!bgMusic) return;
-  bgMusic.pause();
-  bgMusic.currentTime = 0;
+  musicWanted = false;
+  if (musicSource) {
+    try { musicSource.stop(); } catch(e) {}
+    musicSource = null;
+  }
 }
 
-// On mobile, audio can only start inside a user gesture.
-// We attach to every possible gesture type so the first tap/key/touch
-// unlocks audio and then self-removes.
-function _musicUnlock() {
-  if (musicUnlocked) return;
-  _createMusic();
-  bgMusic.play().then(() => {
-    musicUnlocked = true;
-    // If music shouldn't be playing yet (still on menu before game start),
-    // pause immediately — it will restart properly when startGame() is called.
-    if (!gameRunning) { bgMusic.pause(); bgMusic.currentTime = 0; }
-    ['pointerdown','click','touchstart','keydown'].forEach(ev =>
-      document.removeEventListener(ev, _musicUnlock, true)
-    );
-  }).catch(() => {});
-}
-
-['pointerdown','click','touchstart','keydown'].forEach(ev =>
-  document.addEventListener(ev, _musicUnlock, { capture: true, passive: true })
-);
-
-// Also try immediately (works in desktop browsers that allow autoplay)
-_createMusic();
-startMusic();
+// Pre-load as soon as possible (decoding runs in background)
+_loadMusic();
 
 // ═══════════════════════════════════════════════════════════════
 //  BOOT

@@ -216,6 +216,11 @@ body {
   .hud-left  { order: 1; align-items: flex-start; }
   .hud-right { order: 3; align-items: flex-end; }
 
+  /* On mobile move the pause button to the LEFT side so it doesn't clash with lives */
+  .hud-right { flex-direction: row; align-items: center; gap: 6px; }
+  #lives-display { order: 1; }
+  #pause-btn     { order: 0; }
+
   /* Center: level + bar + powerups — full width second row */
   .hud-middle {
     order: 2; flex: 1 1 100%; gap: 3px;
