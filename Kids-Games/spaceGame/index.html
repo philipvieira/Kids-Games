@@ -824,6 +824,10 @@ function update(ts, dt) {
     if (!b.dead && bossActive && boss) {
       if (circleRect(b.x, b.y, 5, boss.x - boss.w / 2, boss.y - boss.h / 2, boss.w, boss.h)) {
         b.dead = true; boss.hp--;
+        // ~15% chance to drop a power-up on each hit
+        if (Math.random() < 0.15) {
+          spawnPowerup(boss.x + (Math.random() - 0.5) * boss.w, boss.y + boss.h / 2);
+        }
         if (boss.hp <= 0) {
           var bpts = 500 * level * scoreMultiplier;
           score += bpts;
@@ -926,7 +930,7 @@ function triggerLevelUp() {
 }
 function nextLevel() {
   level++;
-  hintFadeStart = 0; hintAlpha = 1.0;
+  // Hint only shows on level 1 — don't reset on subsequent levels
   document.getElementById('game-overlay').classList.remove('visible');
   initLevel();
   gameState = 'playing';
@@ -1078,22 +1082,25 @@ function drawHUD() {
   }
 
   var px = 10;
-  var puFont = Math.max(11, Math.round(CW * 0.016));
+  var puFont = Math.max(14, Math.round(CW * 0.026));
+  var puBarW = Math.max(20, Math.round(CW * 0.032));
+  var puStep = puFont + puBarW + 6;
   Object.keys(puTimers).forEach(function(k) {
     var col = PU_COLORS[k];
     var frac = Math.max(0, (puTimers[k] || 0) / 8000);
     ctx.fillStyle = col; ctx.font = 'bold ' + puFont + 'px Arial';
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
     ctx.fillText(PU_EMOJI[k], px, hudH + puFont + 4);
-    ctx.strokeStyle = col; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(px, hudH + puFont * 2 + 6); ctx.lineTo(px + 18 * frac, hudH + puFont * 2 + 6); ctx.stroke();
-    px += 28;
+    ctx.strokeStyle = col; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(px, hudH + puFont * 2 + 8); ctx.lineTo(px + puBarW * frac, hudH + puFont * 2 + 8); ctx.stroke();
+    px += puStep;
   });
 
   if (hs > 0) {
-    ctx.font = '11px Arial'; ctx.fillStyle = 'rgba(251,191,36,0.6)';
+    var hsFont = Math.max(11, Math.round(CW * 0.018));
+    ctx.font = 'bold ' + hsFont + 'px Arial'; ctx.fillStyle = 'rgba(251,191,36,0.65)';
     ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic';
-    ctx.fillText('🏆 ' + hs, CW - 8, CH - 8);
+    ctx.fillText('🏆 ' + hs, CW - 10, CH - 10);
   }
 }
 
