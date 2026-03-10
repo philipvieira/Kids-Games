@@ -629,7 +629,7 @@ function initLevel() {
   var mob = isTouchDevice() || window.innerWidth < 700;
   player = {
     x: CW / 2,
-    y: CH - (mob ? MOBILE_CTRL_H + 28 : 28) - PLAYER_H,
+    y: CH - 28 - PLAYER_H,
     w: PLAYER_W, h: PLAYER_H, invincible: 0,
   };
 
@@ -1211,7 +1211,7 @@ window.addEventListener('resize', function() {
     if (player.x) {
       var mob = isTouchDevice() || window.innerWidth < 700;
       player.x = Math.min(CW - player.w / 2, Math.max(player.w / 2, player.x));
-      player.y = CH - (mob ? MOBILE_CTRL_H + 28 : 28) - PLAYER_H;
+      player.y = CH - 28 - PLAYER_H;
     }
   }
   checkPortrait();
