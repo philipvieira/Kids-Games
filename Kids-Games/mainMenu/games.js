@@ -45,6 +45,15 @@ const GAMES = [
     path:  '../spaceGame/index.html',
   },
 
+  {
+    id:    'memoryGame',
+    title: 'זיכרון קסום',
+    desc:  'הפוך קלפים, מצא זוגות — 4 מצבי משחק, 3 נושאים ורמות קושי!',
+    icon:  '🃏',
+    color: 'linear-gradient(135deg, #1a1a2e 0%, #3a0ca3 50%, #7209b7 100%)',
+    path:  '../memoryGame/index.html',
+  },
+
   // ── Add more games below ─────────────────────────────
   // {
   //   id:    'myNewGame',

@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>זיכרון קסום 🃏</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════
+     MAIN MENU SCREEN
+════════════════════════════════════════ -->
+<div id="screen-menu" class="screen active">
+  <a href="../index.html" class="back-btn" title="חזרה לתפריט">←</a>
+
+  <div class="menu-title-wrap">
+    <div class="menu-title">זיכרון קסום</div>
+    <div class="menu-subtitle">🃏 ✨ 🃏</div>
+  </div>
+
+  <div class="menu-best" id="menu-best"></div>
+
+  <!-- Mode row -->
+  <div class="menu-section-label">סוג משחק</div>
+  <div class="btn-group" id="mode-btns">
+    <button class="sel-btn active" data-mode="classic">קלאסי</button>
+    <button class="sel-btn" data-mode="timed">עם שעון ⏱</button>
+    <button class="sel-btn" data-mode="moving">קלפים זזים 🔀</button>
+    <button class="sel-btn" data-mode="find3">מצא 3 🔎</button>
+  </div>
+
+  <!-- Theme row -->
+  <div class="menu-section-label">נושא</div>
+  <div class="btn-group" id="theme-btns">
+    <button class="sel-btn active" data-theme="animals">חיות 🐾</button>
+    <button class="sel-btn" data-theme="space">חלל 🚀</button>
+    <button class="sel-btn" data-theme="emojis">אמוג'י 😄</button>
+  </div>
+
+  <!-- Difficulty row -->
+  <div class="menu-section-label">רמת קושי</div>
+  <div class="btn-group" id="diff-btns">
+    <button class="sel-btn active" data-diff="easy">קל</button>
+    <button class="sel-btn" data-diff="normal">רגיל</button>
+    <button class="sel-btn" data-diff="hard">קשה</button>
+  </div>
+
+  <button class="play-btn" id="btn-play">▶ שחק!</button>
+
+  <button class="sound-btn" id="btn-sound">🔊 צליל: פועל</button>
+</div>
+
+<!-- ═══════════════════════════════════════
+     GAME SCREEN
+════════════════════════════════════════ -->
+<div id="screen-game" class="screen">
+
+  <!-- HUD bar -->
+  <div id="hud">
+    <div class="hud-cell">
+      <span class="hud-label">מהלכים</span>
+      <span class="hud-val" id="hud-moves">0</span>
+    </div>
+    <div class="hud-cell" id="hud-timer-wrap" style="display:none">
+      <span class="hud-label">זמן</span>
+      <span class="hud-val" id="hud-timer">60</span>
+    </div>
+    <div class="hud-cell">
+      <span class="hud-label">זוגות</span>
+      <span class="hud-val" id="hud-matches">0/0</span>
+    </div>
+    <div class="hud-cell">
+      <span class="hud-label">ניקוד</span>
+      <span class="hud-val" id="hud-score">0</span>
+    </div>
+    <button class="pause-btn" id="btn-pause">⏸</button>
+  </div>
+
+  <!-- Power-up button (hidden until earned) -->
+  <button class="powerup-btn" id="btn-powerup" style="display:none">
+    ✨ גלה הכל!
+  </button>
+
+  <!-- Card grid -->
+  <div id="card-grid"></div>
+
+  <!-- Shuffle countdown overlay (moving mode) -->
+  <div id="shuffle-notice" class="shuffle-notice" style="display:none">🔀 ערבוב!</div>
+
+</div>
+
+<!-- ═══════════════════════════════════════
+     PAUSE OVERLAY
+════════════════════════════════════════ -->
+<div id="overlay-pause" class="overlay" style="display:none">
+  <div class="overlay-box">
+    <div class="overlay-title">הפסקה ⏸</div>
+    <button class="ov-btn primary" id="btn-resume">▶ המשך</button>
+    <button class="ov-btn" id="btn-restart">🔄 התחל מחדש</button>
+    <button class="ov-btn" id="btn-menu-pause">🏠 תפריט ראשי</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     WIN OVERLAY
+════════════════════════════════════════ -->
+<div id="overlay-win" class="overlay" style="display:none">
+  <div class="overlay-box win-box">
+    <div class="confetti-area" id="confetti-area"></div>
+    <div class="overlay-title win-title">🎉 כל הכבוד! 🎉</div>
+    <div class="win-stats" id="win-stats"></div>
+    <div class="new-best" id="new-best" style="display:none">🏆 שיא חדש!</div>
+    <button class="ov-btn primary" id="btn-play-again">🔄 שחק שוב</button>
+    <button class="ov-btn" id="btn-menu-win">🏠 תפריט ראשי</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     LOSE OVERLAY (timed mode)
+════════════════════════════════════════ -->
+<div id="overlay-lose" class="overlay" style="display:none">
+  <div class="overlay-box">
+    <div class="overlay-title">⏱ הזמן נגמר!</div>
+    <p class="lose-msg">כמעט הגעת! נסה שוב 💪</p>
+    <div class="win-stats" id="lose-stats"></div>
+    <button class="ov-btn primary" id="btn-try-again">🔄 נסה שוב</button>
+    <button class="ov-btn" id="btn-menu-lose">🏠 תפריט ראשי</button>
+  </div>
+</div>
+
+<!-- Audio unlock banner -->
+<div id="audio-banner" style="display:none">
+  לחץ כדי להפעיל צלילים 🎵
+</div>
+
+<script src="game.js"></script>
+</body>
+</html>
