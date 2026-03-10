@@ -710,8 +710,6 @@ function update(dt) {
     if (GS.ruleTimer >= GS.ruleChangeMs) {
       GS.ruleTimer = 0;
       GS._spawnsSinceCorrect = 3; // force a correct object on the very next spawn
-      // Clear all non-matched objects so new rule objects appear immediately
-      GS.objects = [];
       applyNewRule(pickNewRule(), true);
     }
   }
@@ -735,7 +733,6 @@ function update(dt) {
     GS.bonusActive = false;
     document.getElementById('bonus-popup').style.display = 'none';
     GS.ruleTimer = 0;
-    GS.objects   = [];
     GS._spawnsSinceCorrect = 3;
     applyNewRule(pickNewRule(), true);
   }
@@ -863,11 +860,6 @@ function drawObject(obj) {
     ctx.lineWidth   = 3;
     drawShape(ctx, obj.shapeId, half);
     ctx.fill(); ctx.stroke();
-    ctx.shadowBlur = 0;
-    ctx.fillStyle  = contrastColor(obj.colorHex);
-    ctx.font = 'bold ' + Math.round(sz * 0.42) + 'px Arial';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(String(obj.number), 0, 0);
   }
 
   ctx.restore();
