@@ -113,7 +113,7 @@ body {
 #highscore-list li .hs-score { color: #4af; font-weight: bold; font-size: 1rem; }
 
 /* ═══════════════════════════════════════
-   HUD — DESKTOP (wide) vs MOBILE (narrow)
+   HUD — base (desktop) + mobile overrides
    ═══════════════════════════════════════ */
 .hud {
   position: fixed; top: 0; left: 0; right: 0; z-index: 20;
@@ -122,43 +122,33 @@ body {
   padding: 6px 10px;
 }
 
-/* Single flex row */
+/* ── Desktop: single wide row ── */
 .hud-row {
   display: flex; align-items: center; justify-content: center;
   gap: 128px; width: 100%;
 }
-
-/* Side columns — only as wide as their content */
 .hud-side {
-  display: flex; flex-direction: column; gap: 4px;
-  flex: 0 0 auto;
+  display: flex; flex-direction: column; gap: 4px; flex: 0 0 auto;
 }
 .hud-left  { align-items: flex-end; }
 .hud-right { align-items: flex-start; }
-
-/* Center column — progress bar + powerups */
 .hud-middle {
   display: flex; flex-direction: column; gap: 5px;
   align-items: center; flex: 0 1 auto;
 }
+.hud-item { color: #ffe000; font-weight: bold; white-space: nowrap; }
 
-.hud-item  { color: #ffe000; font-weight: bold; white-space: nowrap; }
-
-/* Desktop font sizes */
-.hud-timer  { font-size: 2rem; }
-.hud-score  { font-size: 2rem; }
+.hud-timer     { font-size: 2rem; }
+.hud-score     { font-size: 2rem; }
 #lives-display { font-size: 2rem; }
 
-/* Level badge in center */
 .hud-level-badge {
   color: #fff; font-size: 1.4rem; font-weight: bold;
   background: rgba(255,200,0,.2); border: 2px solid rgba(255,200,0,.5);
-  border-radius: 20px; padding: 2px 16px; text-align: center;
-  white-space: nowrap;
+  border-radius: 20px; padding: 2px 16px; text-align: center; white-space: nowrap;
 }
 .hud-level-badge span { color: #ffe000; font-size: 1.8rem; }
 
-/* Level progress bar in HUD */
 .progress-wrap {
   position: relative; width: min(600px, 42vw);
   height: 16px; background: rgba(255,255,255,.15);
@@ -173,7 +163,6 @@ body {
   position: absolute; right: -26px; top: -6px; font-size: 1.8rem; line-height: 1;
 }
 
-/* Powerup slots — center column, below progress bar, horizontal */
 .powerup-slots {
   display: flex; flex-direction: row; gap: 6px;
   align-items: center; justify-content: center;
@@ -189,49 +178,19 @@ body {
   font-size: 0.85rem; font-weight: 900; color: #fff;
   background: linear-gradient(135deg,#f0f,#80f);
   border-radius: 5px; padding: 1px 5px;
-  box-shadow: 0 0 6px rgba(255,0,255,0.6);
-  line-height: 1.4;
+  box-shadow: 0 0 6px rgba(255,0,255,0.6); line-height: 1.4;
 }
 .powerup-slot-bar-wrap {
   width: 50px; height: 7px; background: rgba(255,255,255,.15);
   border-radius: 4px; overflow: hidden;
 }
-.powerup-slot-bar {
-  height: 100%; border-radius: 4px; transition: width 0.1s linear;
-}
+.powerup-slot-bar { height: 100%; border-radius: 4px; transition: width 0.1s linear; }
 
-/* ─── Mobile HUD (portrait phones ≤ 540px) ─── */
-@media (max-width: 540px) {
-  .hud { padding: 4px 6px; }
-  .hud-row { gap: 10px; }
-  .hud-timer  { font-size: 1.1rem; }
-  .hud-score  { font-size: 1.1rem; }
-  #lives-display { font-size: 1.1rem; }
-  .hud-level-badge { font-size: 0.85rem; padding: 1px 8px; }
-  .hud-level-badge span { font-size: 1rem; }
-  .progress-wrap { width: min(200px, 34vw); height: 10px; }
-  .progress-flag { font-size: 1.1rem; right: -16px; top: -4px; }
-  .powerup-slot  { padding: 2px 4px; }
-  .powerup-slot-icon { font-size: 0.85rem; }
-  .x2-badge { font-size: 0.7rem; padding: 1px 3px; }
-  .powerup-slot-bar-wrap { width: 28px; }
-  .pause-btn { font-size: 1.1rem; padding: 2px 8px; }
-}
-
-/* ─── Very small phones (≤ 360px) ─── */
-@media (max-width: 360px) {
-  .hud-row { gap: 6px; }
-  .hud-timer, .hud-score, #lives-display { font-size: 0.95rem; }
-  .progress-wrap { width: 26vw; height: 9px; }
-  .hud-level-badge { font-size: 0.75rem; padding: 1px 5px; }
-}
-
-/* ─── Large desktop (≥ 900px) ─── */
+/* ── Large desktop ── */
 @media (min-width: 900px) {
   .hud { padding: 8px 14px; }
   .hud-row { gap: 160px; }
-  .hud-timer  { font-size: 2.4rem; }
-  .hud-score  { font-size: 2.4rem; }
+  .hud-timer, .hud-score { font-size: 2.4rem; }
   #lives-display { font-size: 2.2rem; }
   .hud-level-badge { font-size: 1.6rem; }
   .hud-level-badge span { font-size: 2rem; }
@@ -240,6 +199,46 @@ body {
   .powerup-slot-icon { font-size: 1.3rem; }
   .x2-badge { font-size: 1.1rem; padding: 2px 7px; }
   .powerup-slot-bar-wrap { width: 65px; }
+}
+
+/* ── Mobile HUD: two compact rows that always fit ── */
+@media (max-width: 600px) {
+  .hud { padding: 3px 6px 4px; }
+
+  /* Row 1: timer | level badge + progress | lives + pause */
+  .hud-row {
+    flex-wrap: wrap; gap: 0;
+    justify-content: space-between; align-items: center;
+  }
+
+  /* Left side: timer + score stacked */
+  .hud-side { gap: 1px; }
+  .hud-left  { order: 1; align-items: flex-start; }
+  .hud-right { order: 3; align-items: flex-end; }
+
+  /* Center: level + bar + powerups — full width second row */
+  .hud-middle {
+    order: 2; flex: 1 1 100%; gap: 3px;
+    padding: 3px 0 0;
+  }
+
+  .hud-timer, .hud-score { font-size: 1rem; line-height: 1.2; }
+  #lives-display { font-size: 1rem; }
+
+  .hud-level-badge { font-size: 0.78rem; padding: 1px 8px; border-width: 1px; }
+  .hud-level-badge span { font-size: 0.92rem; }
+
+  /* Progress bar stretches nearly full width */
+  .progress-wrap { width: calc(100vw - 28px); height: 9px; }
+  .progress-flag { font-size: 1rem; right: -14px; top: -3px; }
+
+  .powerup-slot  { padding: 1px 4px; }
+  .powerup-slot-icon { font-size: 0.78rem; }
+  .x2-badge { font-size: 0.65rem; padding: 1px 3px; }
+  .powerup-slot-bar-wrap { width: 24px; height: 5px; }
+  .powerup-slots { min-height: 16px; gap: 4px; }
+
+  .pause-btn { font-size: 1rem; padding: 2px 7px; }
 }
 
 /* ─── Canvas ─── */

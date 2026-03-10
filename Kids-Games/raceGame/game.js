@@ -148,10 +148,12 @@ function startGame() {
   driverName   = inp || 'נהג';
   currentLevel = 0;
   lives        = 3;
-  startMusic();
   document.body.style.overflow = 'hidden';
   initLevel(0);
   showScreen('game-screen');
+  // startMusic is called here — on mobile it will work because
+  // startGame() is always invoked from a button tap (user gesture).
+  startMusic();
 }
 
 function initLevel(lvl) {
@@ -1445,39 +1447,54 @@ function renderHighScores() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  MUSIC — MP4 audio track
+//  MUSIC
 // ═══════════════════════════════════════════════════════════════
-const bgMusic = new Audio('8bit race.mp4');
-bgMusic.loop   = true;
-bgMusic.volume = 0.55;
+let bgMusic = null;
+let musicUnlocked = false;
+
+function _createMusic() {
+  if (bgMusic) return;
+  bgMusic = new Audio('8bit race.mp4');
+  bgMusic.loop   = true;
+  bgMusic.volume = 0.55;
+}
 
 function startMusic() {
+  _createMusic();
   if (!bgMusic.paused) return;
   const p = bgMusic.play();
   if (p !== undefined) p.catch(() => {});
 }
 
 function stopMusic() {
+  if (!bgMusic) return;
   bgMusic.pause();
   bgMusic.currentTime = 0;
 }
 
-// Every user interaction attempts to start music until it succeeds
+// On mobile, audio can only start inside a user gesture.
+// We attach to every possible gesture type so the first tap/key/touch
+// unlocks audio and then self-removes.
 function _musicUnlock() {
-  if (!bgMusic.paused) return;          // already playing — keep listener but do nothing
+  if (musicUnlocked) return;
+  _createMusic();
   bgMusic.play().then(() => {
-    // Successfully started — remove all unlock listeners
+    musicUnlocked = true;
+    // If music shouldn't be playing yet (still on menu before game start),
+    // pause immediately — it will restart properly when startGame() is called.
+    if (!gameRunning) { bgMusic.pause(); bgMusic.currentTime = 0; }
     ['pointerdown','click','touchstart','keydown'].forEach(ev =>
       document.removeEventListener(ev, _musicUnlock, true)
     );
-  }).catch(() => {});                   // blocked — will retry on next gesture
+  }).catch(() => {});
 }
 
 ['pointerdown','click','touchstart','keydown'].forEach(ev =>
   document.addEventListener(ev, _musicUnlock, { capture: true, passive: true })
 );
 
-// Also try immediately (works in browsers that allow autoplay)
+// Also try immediately (works in desktop browsers that allow autoplay)
+_createMusic();
 startMusic();
 
 // ═══════════════════════════════════════════════════════════════
