@@ -48,12 +48,12 @@ const SHAPES = [
 const NUMBERS = [0,1,2,3,4,5,6,7,8,9];
 
 // Rule change intervals (ms) per difficulty — applies to ALL modes
-const RULE_CHANGE_MS = { easy: 14000, normal: 10000, hard: 7000 };
+const RULE_CHANGE_MS = { easy: 22000, normal: 17000, hard: 12000 };
 
 const DIFF_CFG = {
-  easy:   { lives: 4, speedBase: 130, speedMult: 1.0, spawnMs: 1800, maxObjs: 5,  penaltyHeart: true, penaltyScore: 5,  catcherSpd: 380 },
-  normal: { lives: 3, speedBase: 180, speedMult: 1.0, spawnMs: 1400, maxObjs: 7,  penaltyHeart: true, penaltyScore: 10, catcherSpd: 420 },
-  hard:   { lives: 2, speedBase: 240, speedMult: 1.2, spawnMs: 1000, maxObjs: 10, penaltyHeart: true, penaltyScore: 15, catcherSpd: 460 },
+  easy:   { lives: 4, speedBase: 110, speedMult: 1.0, spawnMs: 900,  maxObjs: 8,  penaltyHeart: true, penaltyScore: 5,  catcherSpd: 380 },
+  normal: { lives: 3, speedBase: 150, speedMult: 1.0, spawnMs: 700,  maxObjs: 10, penaltyHeart: true, penaltyScore: 10, catcherSpd: 420 },
+  hard:   { lives: 2, speedBase: 200, speedMult: 1.2, spawnMs: 550,  maxObjs: 12, penaltyHeart: true, penaltyScore: 15, catcherSpd: 460 },
 };
 
 const MODE_LABELS = { color: '🎨 צבע', shape: '⭐ צורה', number: '🔢 מספר', mix: '🌀 מיקס' };
@@ -163,6 +163,7 @@ function resetRuntime() {
   GS.nextSpawnMs  = cfg.spawnMs;
   GS.ruleTimer    = 0;
   GS.ruleChangeMs = RULE_CHANGE_MS[GS.diff];
+  GS._spawnsSinceCorrect = 0;
   GS.activePU     = null;
   GS.bonusActive  = false;
   GS.bonusEnd     = 0;
@@ -376,14 +377,26 @@ function getObjScale() {
   return GS.isMobile ? MOBILE_SCALE : 1.0;
 }
 
-function createObject(isPowerup) {
-  const color  = COLORS[Math.floor(Math.random() * COLORS.length)];
-  const shape  = SHAPES[Math.floor(Math.random() * SHAPES.length)];
-  const number = NUMBERS[Math.floor(Math.random() * NUMBERS.length)];
+function createObject(isPowerup, forceCorrect) {
+  // When forceCorrect is true, force the object to match the current rule
+  let color  = COLORS[Math.floor(Math.random() * COLORS.length)];
+  let shape  = SHAPES[Math.floor(Math.random() * SHAPES.length)];
+  let number = NUMBERS[Math.floor(Math.random() * NUMBERS.length)];
+
+  if (forceCorrect && GS.currentRule && !isPowerup) {
+    if (GS.currentRule.type === 'color') {
+      color = COLORS.find(function(c){ return c.id === GS.currentRule.value; }) || color;
+    } else if (GS.currentRule.type === 'shape') {
+      shape = SHAPES.find(function(s){ return s.id === GS.currentRule.value; }) || shape;
+    } else if (GS.currentRule.type === 'number') {
+      number = GS.currentRule.value;
+    }
+  }
+
   const cfg    = DIFF_CFG[GS.diff];
   const sc     = getObjScale();
 
-  const levelBonus = (GS.level - 1) * 8;
+  const levelBonus = (GS.level - 1) * 6;
   let speed = (cfg.speedBase + levelBonus) * cfg.speedMult;
   if (GS.activePU && GS.activePU.type === 'slowTime') speed *= 0.4;
 
@@ -409,7 +422,13 @@ function spawnObject() {
   const cfg   = DIFF_CFG[GS.diff];
   const alive = GS.objects.filter(function(o){ return !o.dead; }).length;
   if (alive >= cfg.maxObjs) return;
-  GS.objects.push(createObject(false));
+
+  // Guarantee a correct object at least every 3 spawns so the player always has targets
+  GS._spawnsSinceCorrect = (GS._spawnsSinceCorrect || 0) + 1;
+  const forceCorrect = GS._spawnsSinceCorrect >= 3;
+  const obj = createObject(false, forceCorrect);
+  if (forceCorrect) GS._spawnsSinceCorrect = 0;
+  GS.objects.push(obj);
 }
 
 function maybeSpawnPowerup() {
@@ -616,9 +635,10 @@ function checkLevelUp() {
     SoundFX.levelup();
     spawnScoreText(canvas.width / 2, canvas.height / 2, '🎉 שלב ' + GS.level + '!', '#ffd166');
     if (GS.level % BONUS_EVERY === 0) triggerBonusRound();
-    GS.nextSpawnMs = Math.max(600, DIFF_CFG[GS.diff].spawnMs - (GS.level - 1) * 60);
-    // Speed up rule changes slightly each level (min 4s)
-    GS.ruleChangeMs = Math.max(4000, RULE_CHANGE_MS[GS.diff] - (GS.level - 1) * 300);
+    // Gradually speed up spawn rate (floor = 400ms)
+    GS.nextSpawnMs = Math.max(400, DIFF_CFG[GS.diff].spawnMs - (GS.level - 1) * 40);
+    // Slowly shorten rule-change interval per level (min 8s)
+    GS.ruleChangeMs = Math.max(8000, RULE_CHANGE_MS[GS.diff] - (GS.level - 1) * 500);
     updateHUD();
   }
 }
@@ -689,6 +709,9 @@ function update(dt) {
     GS.ruleTimer += dt * 1000;
     if (GS.ruleTimer >= GS.ruleChangeMs) {
       GS.ruleTimer = 0;
+      GS._spawnsSinceCorrect = 3; // force a correct object on the very next spawn
+      // Clear all non-matched objects so new rule objects appear immediately
+      GS.objects = [];
       applyNewRule(pickNewRule(), true);
     }
   }
@@ -712,6 +735,8 @@ function update(dt) {
     GS.bonusActive = false;
     document.getElementById('bonus-popup').style.display = 'none';
     GS.ruleTimer = 0;
+    GS.objects   = [];
+    GS._spawnsSinceCorrect = 3;
     applyNewRule(pickNewRule(), true);
   }
 
