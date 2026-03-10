@@ -28,9 +28,9 @@ html, body {
 .screen.active { display: flex; }
 
 /* ── THEME BACKGROUNDS ─────────────────────────── */
-body.theme-animals { background: linear-gradient(160deg, #1b4332 0%, #40916c 50%, #74c69d 100%); }
+body.theme-animals { background: #5bbfbf url('animals-bg.png') center center / cover no-repeat; }
 body.theme-space   { background: #2a1a5e url('space-bg.png') center center / cover no-repeat; }
-body.theme-emojis  { background: linear-gradient(160deg, #f72585 0%, #7209b7 50%, #3a0ca3 100%); }
+body.theme-emojis  { background: #fff url('emoji-bg.png') center center / cover no-repeat; }
 
 /* ══════════════════════════════════════════════════
    MAIN MENU — matches spaceGame style
@@ -266,15 +266,17 @@ body.theme-emojis  { background: linear-gradient(160deg, #f72585 0%, #7209b7 50%
   overflow: hidden;
 }
 
-/* Back face — ❓ fills the card */
+/* Back face — card-bg image fills the back, ❓ on top */
 .card-back {
-  background: linear-gradient(135deg, #7209b7, #3a0ca3);
+  background: #1a0a3e url('card-bg.png') center center / cover no-repeat;
   box-shadow: 0 3px 10px rgba(0,0,0,0.35);
 }
 .card-back::after {
   content: '❓';
   font-size: 1em;   /* inherits card container font-size — same as front icon */
   line-height: 1;
+  /* semi-transparent overlay so ❓ is readable over the image */
+  text-shadow: 0 0 6px rgba(0,0,0,0.8);
 }
 
 /* Front face — icon fills card same as ❓ */
@@ -285,10 +287,10 @@ body.theme-emojis  { background: linear-gradient(160deg, #f72585 0%, #7209b7 50%
   /* font-size inherited from card container (set by JS) — matches ❓ size */
 }
 
-/* Theme-specific card backs */
-body.theme-animals .card-back { background: linear-gradient(135deg, #1b4332, #40916c); }
-body.theme-space   .card-back { background: linear-gradient(135deg, #03045e, #0077b6); }
-body.theme-emojis  .card-back { background: linear-gradient(135deg, #f72585, #7209b7); }
+/* Theme card backs — keep image but tint the overlay for each theme */
+body.theme-animals .card-back { background: #2d7a3a url('card-bg.png') center center / cover no-repeat; }
+body.theme-space   .card-back { background: #03045e url('card-bg.png') center center / cover no-repeat; }
+body.theme-emojis  .card-back { background: #b5179e url('card-bg.png') center center / cover no-repeat; }
 
 /* Matched card glow */
 .card.matched .card-front {
