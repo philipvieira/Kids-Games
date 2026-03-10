@@ -662,7 +662,9 @@ function initLevel() {
   }
 
   var speedFactor = cfg.enemySpeedBase + (level - 1) * cfg.enemySpeedInc;
-  enemyMovePeriod = Math.max(80, Math.round(600 / speedFactor));
+  // On narrow mobile screens the grid is smaller so scale period up to keep feel consistent
+  var mobileSlow = CW < 420 ? 1.35 : (CW < 560 ? 1.15 : 1.0);
+  enemyMovePeriod = Math.max(80, Math.round((600 / speedFactor) * mobileSlow));
 
   if (level % 3 === 0) spawnBoss();
 }
@@ -770,14 +772,16 @@ function update(ts, dt) {
       if (alive.length === 0) { triggerLevelUp(); return; }
 
       var hitWall = false;
-      alive.forEach(function(e) { e.x += enemyDir * 14; });
+      var hStep = Math.round(Math.max(6, CW * 0.029));   // ~14px at 480, ~10px at 360
+      var dropH = Math.round(Math.max(10, CH * 0.022));  // ~16px on desktop, proportional on mobile
+      alive.forEach(function(e) { e.x += enemyDir * hStep; });
       alive.forEach(function(e) {
         if (e.x + e.w / 2 > CW - 6 || e.x - e.w / 2 < 6) hitWall = true;
       });
       if (hitWall) {
         enemyDir *= -1;
-        alive.forEach(function(e) { e.y += 16; e.x += enemyDir * 14; });
-        enemyMovePeriod = Math.max(60, enemyMovePeriod - 8);
+        alive.forEach(function(e) { e.y += dropH; e.x += enemyDir * hStep; });
+        enemyMovePeriod = Math.max(60, enemyMovePeriod - 6);
       }
       alive.forEach(function(e) { e.frame = 1 - e.frame; });
 
@@ -926,10 +930,18 @@ function hitPlayer() {
   if (lives <= 0) triggerGameOver();
 }
 var PU_TYPES  = ['shield', 'doubleShot', 'x2score', 'rapidFire'];
-var PU_COLORS = { shield: '#4ade80', doubleShot: '#00e5ff', x2score: '#fbbf24', rapidFire: '#c084fc' };
-var PU_EMOJI  = { shield: '🛡', doubleShot: '💠', x2score: 'x2', rapidFire: '⚡' };
+var PU_COLORS = { shield: '#4ade80', doubleShot: '#00e5ff', x2score: '#fbbf24', rapidFire: '#c084fc', extraLife: '#ff6b9d' };
+var PU_EMOJI  = { shield: '🛡', doubleShot: '💠', x2score: 'x2', rapidFire: '⚡', extraLife: '❤' };
 function spawnPowerup(x, y) {
-  powerups.push({ x: x, y: y, type: PU_TYPES[Math.floor(Math.random() * PU_TYPES.length)] });
+  // extraLife is rare — 1 in 8 chance vs equal share among others
+  var roll = Math.random();
+  var type;
+  if (roll < 0.125) {
+    type = 'extraLife';
+  } else {
+    type = PU_TYPES[Math.floor(Math.random() * PU_TYPES.length)];
+  }
+  powerups.push({ x: x, y: y, type: type });
 }
 function applyPowerup(type) {
   var dur = 8000;
@@ -937,6 +949,7 @@ function applyPowerup(type) {
   if (type === 'doubleShot') { shotLevel = Math.min(4, shotLevel + 1); }
   if (type === 'x2score')    { scoreMultiplier = 2;    puTimers.x2score    = dur; }
   if (type === 'rapidFire')  { rapidFire       = true; puTimers.rapidFire  = dur; }
+  if (type === 'extraLife')  { lives = Math.min(lives + 1, 9); }
 }
 function spawnScorePopup(x, y, text) { scorePopups.push({ x: x, y: y, text: text, alpha: 1.0 }); }
 
