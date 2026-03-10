@@ -628,22 +628,33 @@ function initLevel() {
   enemyDir = 1; enemyMoveTimer = 0; enemyShootTimer = 0;
 
   var mob = isTouchDevice() || window.innerWidth < 700;
+
+  // Scale enemy and player sizes to fit the current canvas width
+  var scale   = Math.min(1, CW / 480);            // 1.0 on desktop, smaller on narrow mobile
+  var eW      = Math.round(ENEMY_W  * scale);
+  var eH      = Math.round(ENEMY_H  * scale);
+  var eGapX   = Math.max(4, Math.round(ENEMY_GAP_X * scale));
+  var eGapY   = Math.max(4, Math.round(ENEMY_GAP_Y * scale));
+  var pW      = Math.round(PLAYER_W * scale);
+  var pH      = Math.round(PLAYER_H * scale);
+
   player = {
     x: CW / 2,
-    y: CH - 28 - PLAYER_H,
-    w: PLAYER_W, h: PLAYER_H, invincible: 0,
+    y: CH - 28 - pH,
+    w: pW, h: pH, invincible: 0,
+    scale: scale,   // store for drawPlayer
   };
 
   enemies = [];
-  var totalW = ENEMY_COLS * (ENEMY_W + ENEMY_GAP_X) - ENEMY_GAP_X;
-  var startX = Math.max(6, (CW - totalW) / 2);
+  var totalW = ENEMY_COLS * (eW + eGapX) - eGapX;
+  var startX = Math.max(4, (CW - totalW) / 2);
   var startY = Math.round(CH * 0.13);
   for (var r = 0; r < ENEMY_ROWS; r++) {
     for (var c = 0; c < ENEMY_COLS; c++) {
       enemies.push({
-        x: startX + c * (ENEMY_W + ENEMY_GAP_X) + ENEMY_W / 2,
-        y: startY + r * (ENEMY_H + ENEMY_GAP_Y) + ENEMY_H / 2,
-        w: ENEMY_W, h: ENEMY_H,
+        x: startX + c * (eW + eGapX) + eW / 2,
+        y: startY + r * (eH + eGapY) + eH / 2,
+        w: eW, h: eH,
         type: r === 0 ? 2 : (r <= 1 ? 1 : 0),
         frame: 0, dead: false,
       });
@@ -1174,34 +1185,33 @@ function drawUFO() {
 function drawPlayer() {
   var blink = player.invincible > 0 && Math.floor(player.invincible / 120) % 2 === 0;
   if (blink) return;
+  var sc = player.scale || 1;
+  var pW = player.w, pH = player.h;
+
   ctx.save(); ctx.translate(player.x, player.y);
 
   if (shieldActive) {
     ctx.strokeStyle = '#4ade80'; ctx.lineWidth = 3;
     ctx.shadowColor = '#4ade80'; ctx.shadowBlur = 16;
-    ctx.beginPath(); ctx.arc(0, 0, player.w / 2 + 8, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, pW / 2 + 8 * sc, 0, Math.PI * 2); ctx.stroke();
     ctx.shadowBlur = 0;
   }
 
   ctx.shadowColor = '#00e5ff'; ctx.shadowBlur = 14; ctx.fillStyle = '#00e5ff';
-  // Main body — pointed upward
   ctx.beginPath();
-  ctx.moveTo(0, -PLAYER_H / 2);
-  ctx.lineTo(-10, PLAYER_H / 2 - 6);
-  ctx.lineTo(10,  PLAYER_H / 2 - 6);
+  ctx.moveTo(0, -pH / 2);
+  ctx.lineTo(-10 * sc, pH / 2 - 6 * sc);
+  ctx.lineTo( 10 * sc, pH / 2 - 6 * sc);
   ctx.closePath(); ctx.fill();
-  // Wings
-  ctx.beginPath(); ctx.moveTo(-10, 4); ctx.lineTo(-PLAYER_W / 2, PLAYER_H / 2); ctx.lineTo(-4, 4); ctx.closePath(); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(10, 4);  ctx.lineTo(PLAYER_W / 2,  PLAYER_H / 2); ctx.lineTo(4,  4); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-10 * sc, 4 * sc); ctx.lineTo(-pW / 2, pH / 2); ctx.lineTo(-4 * sc, 4 * sc); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo( 10 * sc, 4 * sc); ctx.lineTo( pW / 2, pH / 2); ctx.lineTo( 4 * sc, 4 * sc); ctx.closePath(); ctx.fill();
   ctx.shadowBlur = 0;
 
-  // Cockpit
-  ctx.fillStyle = '#0d1b2a'; ctx.beginPath(); ctx.ellipse(0, -2, 5, 7, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = 'rgba(0,229,255,0.5)'; ctx.beginPath(); ctx.ellipse(0, -2, 4, 6, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#0d1b2a'; ctx.beginPath(); ctx.ellipse(0, -2 * sc, 5 * sc, 7 * sc, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(0,229,255,0.5)'; ctx.beginPath(); ctx.ellipse(0, -2 * sc, 4 * sc, 6 * sc, 0, 0, Math.PI * 2); ctx.fill();
 
-  // Engine glow
   ctx.fillStyle = 'rgba(255,150,0,0.7)'; ctx.shadowColor = '#ff9600'; ctx.shadowBlur = 10;
-  ctx.beginPath(); ctx.ellipse(0, PLAYER_H / 2 - 4, 5, 4, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(0, pH / 2 - 4 * sc, 5 * sc, 4 * sc, 0, 0, Math.PI * 2); ctx.fill();
   ctx.shadowBlur = 0;
 
   ctx.restore();
@@ -1216,7 +1226,7 @@ window.addEventListener('resize', function() {
     if (player.x) {
       var mob = isTouchDevice() || window.innerWidth < 700;
       player.x = Math.min(CW - player.w / 2, Math.max(player.w / 2, player.x));
-      player.y = CH - 28 - PLAYER_H;
+      player.y = CH - 28 - player.h;
     }
   }
   checkPortrait();
