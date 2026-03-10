@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Color Catcher 🎨</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════
+     MAIN MENU
+════════════════════════════════════════ -->
+<div id="screen-menu" class="screen active">
+  <div class="menu-box">
+    <a href="../mainMenu/index.html" class="btn-back-main">🏠 חזרה לתפריט הראשי</a>
+
+    <div class="game-title">🎨 Color Catcher</div>
+    <div class="game-tagline">תפוס את הצורות הנכונות!</div>
+
+    <div class="menu-best" id="menu-best"></div>
+
+    <div class="section-label">מצב משחק</div>
+    <div class="btn-group" id="mode-btns">
+      <button class="sel-btn active" data-mode="color">🎨 צבע</button>
+      <button class="sel-btn" data-mode="shape">⭐ צורה</button>
+      <button class="sel-btn" data-mode="number">🔢 מספר</button>
+      <button class="sel-btn" data-mode="mix">🌀 מיקס</button>
+    </div>
+
+    <div class="section-label">רמת קושי</div>
+    <div class="diff-row">
+      <button class="diff-btn active" data-diff="easy">😊<br/>קל</button>
+      <button class="diff-btn" data-diff="normal">🎯<br/>רגיל</button>
+      <button class="diff-btn" data-diff="hard">💀<br/>קשה</button>
+    </div>
+
+    <button class="btn-primary" id="btn-play">▶ שחק!</button>
+
+    <div class="menu-row">
+      <button class="btn-secondary" id="btn-howto">❓ איך משחקים</button>
+      <div class="sound-row">
+        <span class="sound-label">צליל:</span>
+        <button class="sound-toggle on" id="btn-sound">🔊 פועל</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     HOW TO PLAY MODAL
+════════════════════════════════════════ -->
+<div id="modal-howto" class="modal-overlay" style="display:none">
+  <div class="modal-box">
+    <div class="modal-title">❓ איך משחקים?</div>
+    <div class="how-row"><span class="how-icon">🎯</span><span>ראה את הכלל בראש המסך — תפוס רק את הצורות שמתאימות!</span></div>
+    <div class="how-row"><span class="how-icon">✅</span><span>תפיסה נכונה — ניקוד!</span></div>
+    <div class="how-row"><span class="how-icon">❌</span><span>תפיסה שגויה — מאבד לב</span></div>
+    <div class="how-row"><span class="how-icon">⬇️</span><span>פספוס של צורה נכונה — עונש קטן</span></div>
+    <div class="how-row"><span class="how-icon">⚡</span><span>תפוס פריטי כוח מיוחדים להטבות!</span></div>
+    <hr class="how-sep"/>
+    <div class="how-row"><span class="how-icon">⌨️</span><span><strong>מחשב:</strong> חצים שמאל/ימין או A/D לתנועה, P/Esc להפסקה</span></div>
+    <div class="how-row"><span class="how-icon">📱</span><span><strong>מובייל:</strong> לחצני ◀ ▶ בתחתית, או גרור את הסל</span></div>
+    <button class="btn-primary" id="btn-howto-close">סגור</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     GAME SCREEN
+════════════════════════════════════════ -->
+<div id="screen-game" class="screen">
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="hud-left">
+      <div class="hud-hearts" id="hud-hearts"></div>
+      <div class="hud-level" id="hud-level">שלב 1</div>
+    </div>
+    <div class="hud-center">
+      <div class="rule-badge" id="rule-badge">
+        <span class="rule-label">תפוס:</span>
+        <span class="rule-value" id="rule-value">🔴 אדום</span>
+      </div>
+    </div>
+    <div class="hud-right">
+      <div class="hud-score" id="hud-score">0</div>
+      <button class="pause-btn" id="btn-pause">⏸</button>
+    </div>
+  </div>
+
+  <!-- Power-up indicator bar -->
+  <div id="pu-bar" style="display:none">
+    <span id="pu-icon">⚡</span>
+    <span id="pu-label">האטת זמן</span>
+    <div class="pu-timer-track"><div class="pu-timer-fill" id="pu-timer-fill"></div></div>
+  </div>
+
+  <!-- Canvas -->
+  <canvas id="game-canvas"></canvas>
+
+  <!-- Rule change popup -->
+  <div id="rule-popup" class="rule-popup" style="display:none">
+    <div class="rp-title">כלל חדש!</div>
+    <div class="rp-value" id="rp-value"></div>
+  </div>
+
+  <!-- Bonus round popup -->
+  <div id="bonus-popup" class="bonus-popup" style="display:none">🌟 סיבוב בונוס! 🌟</div>
+
+  <!-- Mobile controls -->
+  <div id="mobile-controls">
+    <button class="mc-btn" id="mc-left">◀</button>
+    <button class="mc-btn" id="mc-right">▶</button>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════
+     PAUSE OVERLAY
+════════════════════════════════════════ -->
+<div id="overlay-pause" class="overlay" style="display:none">
+  <div class="overlay-box">
+    <div class="overlay-title">⏸ הפסקה</div>
+    <button class="ov-btn primary" id="btn-resume">▶ המשך</button>
+    <button class="ov-btn" id="btn-restart">🔄 התחל מחדש</button>
+    <button class="ov-btn" id="btn-pause-menu">🏠 תפריט ראשי</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     GAME OVER OVERLAY
+════════════════════════════════════════ -->
+<div id="overlay-gameover" class="overlay" style="display:none">
+  <div class="overlay-box gameover-box">
+    <div class="overlay-title go-title">💪 כל הכבוד!</div>
+    <div class="go-msg" id="go-msg"></div>
+    <div class="go-stats" id="go-stats"></div>
+    <div class="go-best" id="go-best" style="display:none">🏆 שיא חדש!</div>
+    <button class="ov-btn primary" id="btn-play-again">🔄 שחק שוב</button>
+    <button class="ov-btn" id="btn-go-menu">🏠 תפריט ראשי</button>
+  </div>
+</div>
+
+<!-- Audio unlock banner -->
+<div id="audio-banner" style="display:none">לחץ להפעלת צלילים 🎵</div>
+
+<script src="game.js"></script>
+</body>
+</html>
