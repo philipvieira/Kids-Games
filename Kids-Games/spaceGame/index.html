@@ -525,7 +525,7 @@ const UFO_INTERVAL = 18000;
 
 let powerups = [], scoreMultiplier = 1, shieldActive = false, doubleShot = false, rapidFire = false, puTimers = {};
 
-let boss = null, bossActive = false;
+let boss = null, bossActive = false, bossCount = 0;
 
 let keysDown = {}, mobileLeft = false, mobileRight = false;
 let overlayMode = 'pause';
@@ -602,6 +602,7 @@ function startGame() {
   scoreMultiplier = 1; shieldActive = false; doubleShot = false; rapidFire = false;
   puTimers = {}; scorePopups = []; lastShotTime = 0;
   hintAlpha = 1.0; hintFadeStart = 0;
+  bossCount = 0;
 
   initLevel();
   initGameStars();
@@ -659,7 +660,9 @@ function initLevel() {
 //  BOSS — lower HP: 8 * level (was 30 * level)
 // ═══════════════════════════════════════════════════════════════
 function spawnBoss() {
-  var maxHp = Math.round(8 * level * DIFF_CFG[selectedDiff].bossHpMult);
+  bossCount++;
+  // Flat base HP + tiny increment per encounter, scaled by difficulty
+  var maxHp = Math.round((8 + (bossCount - 1) * 3) * DIFF_CFG[selectedDiff].bossHpMult);
   boss = { x: CW / 2, y: 60, w: 80, h: 44, hp: maxHp, maxHp: maxHp, dir: 1, shootTimer: 0 };
   bossActive = true; enemies = [];
 }
@@ -824,8 +827,9 @@ function update(ts, dt) {
     if (!b.dead && bossActive && boss) {
       if (circleRect(b.x, b.y, 5, boss.x - boss.w / 2, boss.y - boss.h / 2, boss.w, boss.h)) {
         b.dead = true; boss.hp--;
-        // ~15% chance to drop a power-up on each hit
-        if (Math.random() < 0.15) {
+        // Drop chance grows with each boss encounter (15% → 40% max)
+        var bossDropChance = Math.min(0.40, 0.15 + (bossCount - 1) * 0.05);
+        if (Math.random() < bossDropChance) {
           spawnPowerup(boss.x + (Math.random() - 0.5) * boss.w, boss.y + boss.h / 2);
         }
         if (boss.hp <= 0) {
@@ -1074,12 +1078,6 @@ function drawHUD() {
   ctx.fillStyle = '#f87171'; ctx.textAlign = 'left';
   ctx.fillText('❤ x' + lives, 10, midY);
 
-  if (shieldActive) {
-    ctx.strokeStyle = '#4ade80'; ctx.lineWidth = 2;
-    ctx.shadowColor = '#4ade80'; ctx.shadowBlur = 8;
-    ctx.beginPath(); ctx.moveTo(0, hudH); ctx.lineTo(CW * Math.max(0, (puTimers.shield || 0) / 8000), hudH); ctx.stroke();
-    ctx.shadowBlur = 0;
-  }
 
   var px = 10;
   var puFont = Math.max(14, Math.round(CW * 0.026));
