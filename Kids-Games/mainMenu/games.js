@@ -56,7 +56,7 @@ const GAMES = [
 
   {
     id:    'colorCatcher',
-    title: 'Color Catcher',
+    title: 'תופס צבעים',
     desc:  'תפוס רק את הצורות הנכונות — צבע, צורה, מספר, או מיקס! 4 מצבי משחק.',
     icon:  '🎨',
     color: 'linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%)',

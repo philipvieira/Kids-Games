@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Color Catcher 🎨</title>
+  <title>תופס צבעים 🎨</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -15,7 +15,7 @@
   <div class="menu-box">
     <a href="../mainMenu/index.html" class="btn-back-main">🏠 חזרה לתפריט הראשי</a>
 
-    <div class="game-title">🎨 Color Catcher</div>
+    <div class="game-title">🎨 תופס צבעים</div>
     <div class="game-tagline">תפוס את הצורות הנכונות!</div>
 
     <div class="menu-best" id="menu-best"></div>
@@ -80,6 +80,7 @@
       <div class="rule-badge" id="rule-badge">
         <span class="rule-label">תפוס:</span>
         <span class="rule-value" id="rule-value">🔴 אדום</span>
+        <span class="rule-timer" id="rule-timer"></span>
       </div>
     </div>
     <div class="hud-right">
@@ -107,7 +108,7 @@
   <!-- Bonus round popup -->
   <div id="bonus-popup" class="bonus-popup" style="display:none">🌟 סיבוב בונוס! 🌟</div>
 
-  <!-- Mobile controls -->
+  <!-- Mobile controls: standard layout, left button on left side, right button on right side -->
   <div id="mobile-controls">
     <button class="mc-btn" id="mc-left">◀</button>
     <button class="mc-btn" id="mc-right">▶</button>

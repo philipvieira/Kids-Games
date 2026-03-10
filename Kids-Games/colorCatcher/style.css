@@ -211,6 +211,12 @@ html, body {
 }
 .rule-label { font-size: clamp(0.6rem, 2.2vw, 0.72rem); color: rgba(255,255,255,0.55); white-space: nowrap; }
 .rule-value { font-size: clamp(0.82rem, 3vw, 1rem); font-weight: 800; color: #fff; white-space: nowrap; }
+.rule-timer {
+  font-size: clamp(0.6rem, 2.2vw, 0.72rem); color: #ffd166;
+  font-weight: 700; white-space: nowrap;
+  background: rgba(255,209,102,0.2); border-radius: 999px;
+  padding: 1px 6px; margin-right: 2px;
+}
 
 .pause-btn {
   background: rgba(255,255,255,0.1); border: none;
@@ -295,8 +301,8 @@ html, body {
   transition: background 0.08s;
 }
 .mc-btn:active, .mc-btn.pressed { background: rgba(255,209,102,0.4); }
-#mc-left  { right: 10px; }
-#mc-right { left: 10px; }
+#mc-left  { left: 10px; }
+#mc-right { right: 10px; }
 
 /* ══════════════════════════════════════════════════
    OVERLAYS
