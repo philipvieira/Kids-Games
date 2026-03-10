@@ -279,11 +279,7 @@ body.theme-emojis  { background: #fff url('emoji-bg.png') center center / cover 
   box-shadow: 0 3px 10px rgba(0,0,0,0.35);
 }
 .card-back::after {
-  content: '❓';
-  font-size: 1em;   /* inherits card container font-size — same as front icon */
-  line-height: 1;
-  /* semi-transparent overlay so ❓ is readable over the image */
-  text-shadow: 0 0 6px rgba(0,0,0,0.8);
+  content: '';
 }
 
 /* Front face — icon fills card same as ❓ */
