@@ -230,6 +230,52 @@ const SoundFX = (() => {
 })();
 
 // ════════════════════════════════════════════════════════════
+// 4b. BACKGROUND MUSIC
+// ════════════════════════════════════════════════════════════
+
+const BgMusic = (() => {
+  let audio = null;
+  let started = false;
+
+  function getAudio() {
+    if (!audio) {
+      audio = new window.Audio('MemoryMusic.mp3');
+      audio.loop   = true;
+      audio.volume = 0.35;
+    }
+    return audio;
+  }
+
+  return {
+    play() {
+      if (!State.soundOn) return;
+      const a = getAudio();
+      if (a.paused) {
+        const p = a.play();
+        if (p && p.catch) p.catch(() => {});
+      }
+      started = true;
+    },
+    stop() {
+      if (audio && !audio.paused) {
+        audio.pause();
+        audio.currentTime = 0;
+      }
+    },
+    pause() {
+      if (audio && !audio.paused) audio.pause();
+    },
+    resume() {
+      if (!State.soundOn) return;
+      if (audio && audio.paused && started) {
+        const p = audio.play();
+        if (p && p.catch) p.catch(() => {});
+      }
+    },
+  };
+})();
+
+// ════════════════════════════════════════════════════════════
 // 5. UI HELPERS
 // ════════════════════════════════════════════════════════════
 
@@ -364,9 +410,10 @@ function renderGrid() {
     const el = document.createElement('div');
     el.className  = 'card';
     el.dataset.idx = idx;
-    el.style.width  = sz + 'px';
-    el.style.height = sz + 'px';
-    el.style.fontSize = Math.round(sz * 0.45) + 'px';
+    el.style.width    = sz + 'px';
+    el.style.height   = sz + 'px';
+    // font-size drives BOTH the ❓ on the back and the icon on the front equally
+    el.style.fontSize = Math.round(sz * 0.58) + 'px';
 
     el.innerHTML = `
       <div class="card-face card-back"></div>
@@ -491,6 +538,7 @@ function startGame() {
   // Build & render
   State.cards = buildCardData();
   UI.show('screen-game');
+  BgMusic.play();
   // Short delay to allow screen layout to settle before computing card size
   requestAnimationFrame(() => {
     renderGrid();
@@ -636,6 +684,7 @@ function endGame(won) {
   State.running = false;
   clearInterval(State.timerInterval);
   clearTimeout(State.shuffleTimeout);
+  BgMusic.stop();
 
   if (won) {
     SoundFX.win();
@@ -745,14 +794,15 @@ function wireMenuButtons() {
   });
 
   // Difficulty selector
-  document.getElementById('diff-btns').addEventListener('click', e => {
-    const btn = e.target.closest('[data-diff]');
-    if (!btn) return;
-    document.querySelectorAll('#diff-btns .sel-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    State.diff = btn.dataset.diff;
-    Storage.saveSettings({ diff: State.diff });
-    UI.updateMenuBest();
+  document.getElementById('diff-btns') && document.querySelectorAll('[data-diff]').length;
+  document.querySelectorAll('.diff-btn[data-diff]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.diff-btn[data-diff]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      State.diff = btn.dataset.diff;
+      Storage.saveSettings({ diff: State.diff });
+      UI.updateMenuBest();
+    });
   });
 
   // Play button
@@ -766,8 +816,10 @@ function wireMenuButtons() {
     SoundFX.unlock();
     State.soundOn = !State.soundOn;
     Storage.saveSettings({ soundOn: State.soundOn });
-    document.getElementById('btn-sound').textContent =
-      State.soundOn ? '🔊 צליל: פועל' : '🔇 צליל: כבוי';
+    const btn = document.getElementById('btn-sound');
+    btn.textContent = State.soundOn ? '🔊 פועל' : '🔇 כבוי';
+    btn.classList.toggle('on', State.soundOn);
+    if (State.soundOn) BgMusic.play(); else BgMusic.stop();
   });
 }
 
@@ -779,6 +831,7 @@ function wireGameButtons() {
     State.running = false;
     clearTimeout(State.shuffleTimeout);
     clearInterval(State.timerInterval);
+    BgMusic.pause();
     document.getElementById('overlay-pause').style.display = 'flex';
   });
 
@@ -787,6 +840,7 @@ function wireGameButtons() {
     SoundFX.unlock();
     document.getElementById('overlay-pause').style.display = 'none';
     State.running = true;
+    BgMusic.resume();
     if (State.mode === 'timed') startTimer();
     if (State.mode === 'moving') scheduleNextShuffle();
   });
@@ -841,6 +895,7 @@ function wireGameButtons() {
 
 function goToMenu() {
   resetRuntime();
+  BgMusic.stop();
   // Hide all overlays
   ['overlay-pause','overlay-win','overlay-lose'].forEach(id => {
     document.getElementById(id).style.display = 'none';
@@ -892,14 +947,15 @@ function restoreSettings() {
   }
   if (s.diff && DIFF[s.diff]) {
     State.diff = s.diff;
-    document.querySelectorAll('#diff-btns .sel-btn').forEach(b => {
+    document.querySelectorAll('.diff-btn[data-diff]').forEach(b => {
       b.classList.toggle('active', b.dataset.diff === State.diff);
     });
   }
   if (typeof s.soundOn === 'boolean') {
     State.soundOn = s.soundOn;
-    document.getElementById('btn-sound').textContent =
-      State.soundOn ? '🔊 צליל: פועל' : '🔇 צליל: כבוי';
+    const btn = document.getElementById('btn-sound');
+    btn.textContent = State.soundOn ? '🔊 פועל' : '🔇 כבוי';
+    btn.classList.toggle('on', State.soundOn);
   }
   UI.applyTheme(State.theme);
 }

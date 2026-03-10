@@ -12,43 +12,48 @@
      MAIN MENU SCREEN
 ════════════════════════════════════════ -->
 <div id="screen-menu" class="screen active">
-  <a href="../index.html" class="back-btn" title="חזרה לתפריט">←</a>
+  <div class="menu-box">
 
-  <div class="menu-title-wrap">
-    <div class="menu-title">זיכרון קסום</div>
-    <div class="menu-subtitle">🃏 ✨ 🃏</div>
+    <a href="../mainMenu/index.html" class="btn-back-main">🏠 חזרה לתפריט הראשי</a>
+
+    <div class="game-title">🃏 זיכרון קסום</div>
+    <div class="game-tagline">הפוך קלפים, מצא זוגות — כמה מהר תזכור?</div>
+
+    <div class="menu-best" id="menu-best"></div>
+
+    <!-- Mode row -->
+    <div class="section-label">סוג משחק</div>
+    <div class="btn-group" id="mode-btns">
+      <button class="sel-btn active" data-mode="classic">קלאסי</button>
+      <button class="sel-btn" data-mode="timed">עם שעון ⏱</button>
+      <button class="sel-btn" data-mode="moving">קלפים זזים 🔀</button>
+      <button class="sel-btn" data-mode="find3">מצא 3 🔎</button>
+    </div>
+
+    <!-- Theme row -->
+    <div class="section-label">נושא</div>
+    <div class="btn-group" id="theme-btns">
+      <button class="sel-btn active" data-theme="animals">חיות 🐾</button>
+      <button class="sel-btn" data-theme="space">חלל 🚀</button>
+      <button class="sel-btn" data-theme="emojis">אמוג'י 😄</button>
+    </div>
+
+    <!-- Difficulty row -->
+    <div class="section-label">רמת קושי</div>
+    <div class="diff-row">
+      <button class="diff-btn active" data-diff="easy">😊<br/>קל</button>
+      <button class="diff-btn" data-diff="normal">🧠<br/>רגיל</button>
+      <button class="diff-btn" data-diff="hard">💀<br/>קשה</button>
+    </div>
+
+    <button class="btn-primary" id="btn-play">🃏 התחל משחק</button>
+
+    <div class="sound-row">
+      <span class="sound-label">צליל:</span>
+      <button class="sound-toggle on" id="btn-sound">🔊 פועל</button>
+    </div>
+
   </div>
-
-  <div class="menu-best" id="menu-best"></div>
-
-  <!-- Mode row -->
-  <div class="menu-section-label">סוג משחק</div>
-  <div class="btn-group" id="mode-btns">
-    <button class="sel-btn active" data-mode="classic">קלאסי</button>
-    <button class="sel-btn" data-mode="timed">עם שעון ⏱</button>
-    <button class="sel-btn" data-mode="moving">קלפים זזים 🔀</button>
-    <button class="sel-btn" data-mode="find3">מצא 3 🔎</button>
-  </div>
-
-  <!-- Theme row -->
-  <div class="menu-section-label">נושא</div>
-  <div class="btn-group" id="theme-btns">
-    <button class="sel-btn active" data-theme="animals">חיות 🐾</button>
-    <button class="sel-btn" data-theme="space">חלל 🚀</button>
-    <button class="sel-btn" data-theme="emojis">אמוג'י 😄</button>
-  </div>
-
-  <!-- Difficulty row -->
-  <div class="menu-section-label">רמת קושי</div>
-  <div class="btn-group" id="diff-btns">
-    <button class="sel-btn active" data-diff="easy">קל</button>
-    <button class="sel-btn" data-diff="normal">רגיל</button>
-    <button class="sel-btn" data-diff="hard">קשה</button>
-  </div>
-
-  <button class="play-btn" id="btn-play">▶ שחק!</button>
-
-  <button class="sound-btn" id="btn-sound">🔊 צליל: פועל</button>
 </div>
 
 <!-- ═══════════════════════════════════════
