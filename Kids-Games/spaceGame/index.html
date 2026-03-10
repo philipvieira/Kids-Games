@@ -517,6 +517,7 @@ let enemies         = [];
 let enemyDir        = 1;
 let enemyMoveTimer  = 0;
 let enemyMovePeriod = 600;
+let enemyMinPeriod  = 120;
 let enemyBullets    = [];
 let enemyShootTimer = 0;
 
@@ -625,16 +626,17 @@ function initLevel() {
   var cfg = DIFF_CFG[selectedDiff];
   playerBullets = []; enemyBullets = []; powerups = []; scorePopups = [];
   bossActive = false; boss = null; ufo = null; ufoTimer = 0;
-  enemyDir = 1; enemyMoveTimer = 0; enemyShootTimer = 0;
+  enemyDir = 1; enemyMoveTimer = 0; enemyShootTimer = 0; enemyMinPeriod = 120;
 
   var mob = isTouchDevice() || window.innerWidth < 700;
 
-  // Scale enemy and player sizes to fit the current canvas width
-  var scale   = Math.min(1, CW / 480);            // 1.0 on desktop, smaller on narrow mobile
+  // On mobile, force enemies and ship to at most 50% of their desktop size
+  // On desktop, keep full size (scale = 1.0)
+  var scale = mob ? Math.min(0.5, CW / 480) : Math.min(1, CW / 480);
   var eW      = Math.round(ENEMY_W  * scale);
   var eH      = Math.round(ENEMY_H  * scale);
-  var eGapX   = Math.max(4, Math.round(ENEMY_GAP_X * scale));
-  var eGapY   = Math.max(4, Math.round(ENEMY_GAP_Y * scale));
+  var eGapX   = Math.max(3, Math.round(ENEMY_GAP_X * scale));
+  var eGapY   = Math.max(3, Math.round(ENEMY_GAP_Y * scale));
   var pW      = Math.round(PLAYER_W * scale);
   var pH      = Math.round(PLAYER_H * scale);
 
@@ -662,9 +664,11 @@ function initLevel() {
   }
 
   var speedFactor = cfg.enemySpeedBase + (level - 1) * cfg.enemySpeedInc;
-  // On narrow mobile screens the grid is smaller so scale period up to keep feel consistent
-  var mobileSlow = CW < 420 ? 1.35 : (CW < 560 ? 1.15 : 1.0);
-  enemyMovePeriod = Math.max(80, Math.round((600 / speedFactor) * mobileSlow));
+  // On narrow mobile screens slow things down proportionally
+  var mobileSlow = (mob && CW < 420) ? 1.6 : (mob && CW < 560) ? 1.35 : 1.0;
+  enemyMovePeriod = Math.round((600 / speedFactor) * mobileSlow);
+  // Mobile gets a higher minimum period (slower cap) so high levels stay playable
+  enemyMinPeriod  = mob ? Math.round(160 * mobileSlow) : 80;
 
   if (level % 3 === 0) spawnBoss();
 }
@@ -772,8 +776,8 @@ function update(ts, dt) {
       if (alive.length === 0) { triggerLevelUp(); return; }
 
       var hitWall = false;
-      var hStep = Math.round(Math.max(6, CW * 0.029));   // ~14px at 480, ~10px at 360
-      var dropH = Math.round(Math.max(10, CH * 0.022));  // ~16px on desktop, proportional on mobile
+      var hStep = Math.round(Math.max(4, CW * 0.022));   // ~10px at 480, ~8px at 360
+      var dropH = Math.round(Math.max(8, CH * 0.018));   // proportional drop per bounce
       alive.forEach(function(e) { e.x += enemyDir * hStep; });
       alive.forEach(function(e) {
         if (e.x + e.w / 2 > CW - 6 || e.x - e.w / 2 < 6) hitWall = true;
@@ -781,7 +785,7 @@ function update(ts, dt) {
       if (hitWall) {
         enemyDir *= -1;
         alive.forEach(function(e) { e.y += dropH; e.x += enemyDir * hStep; });
-        enemyMovePeriod = Math.max(60, enemyMovePeriod - 6);
+        enemyMovePeriod = Math.max(enemyMinPeriod, enemyMovePeriod - 4);
       }
       alive.forEach(function(e) { e.frame = 1 - e.frame; });
 
