@@ -165,20 +165,47 @@
     @media (max-width: 640px) { .footer-mouse { display: none; } }
 
     /* Mobile touch controls */
-    .touch-controls { display: none; gap: 10px; margin-top: 10px; align-items: center; }
-    @media (max-width: 640px) { .touch-controls { display: flex; } }
-    .touch-btn {
-      padding: 14px 28px;
-      background: rgba(0,229,255,0.15); border: 2px solid rgba(0,229,255,0.3);
-      border-radius: 16px; color: #00e5ff; font-size: 1.4rem;
-      cursor: pointer; user-select: none; -webkit-user-select: none;
+    .touch-controls {
+      display: none; gap: 12px; margin-top: 8px;
+      align-items: center; width: 100%; max-width: 560px;
     }
-    .touch-btn:active { background: rgba(0,229,255,0.35); }
+    @media (max-width: 640px) { .touch-controls { display: flex; } }
+
+    /* Drag strip — the main mobile control */
+    .drag-strip {
+      flex: 1;
+      height: 72px;
+      background: rgba(0,229,255,0.08);
+      border: 2px solid rgba(0,229,255,0.25);
+      border-radius: 18px;
+      position: relative;
+      touch-action: none;
+      user-select: none; -webkit-user-select: none;
+      display: flex; align-items: center; justify-content: center;
+      overflow: hidden;
+    }
+    .drag-strip-label {
+      font-size: 0.78rem; color: rgba(0,229,255,0.55);
+      pointer-events: none; text-align: center; line-height: 1.3;
+    }
+    /* Indicator thumb that follows the finger */
+    .drag-thumb {
+      position: absolute;
+      top: 50%; transform: translateY(-50%);
+      left: 50%; width: 36px; height: 36px; margin-left: -18px;
+      background: rgba(0,229,255,0.35);
+      border: 2px solid #00e5ff;
+      border-radius: 50%;
+      pointer-events: none;
+      transition: top 0.05s linear;
+    }
+
     .btn-pause-mobile {
       padding: 14px 20px;
       background: rgba(255,255,255,0.12); border: 2px solid rgba(255,255,255,0.25);
       border-radius: 16px; color: #fff; font-size: 1.3rem;
       cursor: pointer; user-select: none; -webkit-user-select: none;
+      flex-shrink: 0;
     }
     .btn-pause-mobile:active { background: rgba(255,255,255,0.28); }
 
@@ -360,9 +387,11 @@
   <canvas id="game-canvas" width="560" height="420"></canvas>
   <div class="game-footer">⬆ / ⬇ מקלדת <span class="footer-mouse">&nbsp;|&nbsp; 🖱️ הזזת העכבר</span> &nbsp;|&nbsp; רווח — השהה</div>
   <div class="touch-controls">
-    <button class="touch-btn"       ontouchstart="touchUp=true"   ontouchend="touchUp=false">▲</button>
+    <div class="drag-strip" id="drag-strip">
+      <div class="drag-thumb" id="drag-thumb"></div>
+      <span class="drag-strip-label">גרור למעלה / למטה<br/>להזזת המחבט</span>
+    </div>
     <button class="btn-pause-mobile" id="btn-pause-mobile">⏸</button>
-    <button class="touch-btn"       ontouchstart="touchDown=true" ontouchend="touchDown=false">▼</button>
   </div>
 </div>
 
@@ -871,10 +900,42 @@
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
     return (clientY - rect.top) * scaleY;
   }
+  // Mouse control on the canvas (desktop only)
   canvas.addEventListener('mousemove', e => { mouseY = getCanvasY(e); });
-  canvas.addEventListener('touchmove', e => { e.preventDefault(); mouseY = getCanvasY(e); }, { passive: false });
   canvas.addEventListener('mouseleave', () => { mouseY = null; });
-  canvas.addEventListener('touchend',   () => { mouseY = null; });
+
+  // Drag strip — maps finger Y on the strip to paddle Y in the game
+  const dragStrip = document.getElementById('drag-strip');
+  const dragThumb = document.getElementById('drag-thumb');
+
+  function getDragY(e) {
+    const touch = e.touches ? e.touches[0] : e;
+    const rect  = dragStrip.getBoundingClientRect();
+    return Math.max(0, Math.min(1, (touch.clientY - rect.top) / rect.height));
+  }
+  function applyDrag(e) {
+    e.preventDefault();
+    const ratio  = getDragY(e);
+    const playerH = getPlayerH();
+    // Map strip 0–1 → game 0–(GAME_H - playerH)
+    mouseY = ratio * GAME_H;
+    // Move thumb indicator
+    dragThumb.style.top  = (ratio * 100) + '%';
+    dragThumb.style.display = 'block';
+    // Hide label while dragging
+    dragStrip.querySelector('.drag-strip-label').style.opacity = '0';
+  }
+  function endDrag() {
+    mouseY = null;
+    dragThumb.style.top = '50%';
+    dragStrip.querySelector('.drag-strip-label').style.opacity = '1';
+  }
+  dragStrip.addEventListener('touchstart', applyDrag, { passive: false });
+  dragStrip.addEventListener('touchmove',  applyDrag, { passive: false });
+  dragStrip.addEventListener('touchend',   endDrag,   { passive: false });
+  // Also allow mouse drag on strip for desktop testing
+  dragStrip.addEventListener('mousemove',  applyDrag);
+  dragStrip.addEventListener('mouseleave', endDrag);
 
   // ═══════════════════════════════════════════════════════════
   //  CPU AI
