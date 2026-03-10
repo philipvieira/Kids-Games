@@ -58,14 +58,6 @@
       text-align: center;
       box-shadow: 0 24px 60px rgba(0,0,0,0.7), 0 0 40px rgba(0,229,255,0.08);
     }
-    /* On desktop — much larger menu */
-    @media (hover: hover) and (pointer: fine) {
-      .menu-box {
-        max-width: 860px;
-        padding: 56px 64px;
-        border-radius: 40px;
-      }
-    }
     .btn-back-main {
       display: block; width: 100%; padding: 12px; margin-bottom: 24px;
       background: rgba(255,255,255,0.08); color: rgba(200,220,255,0.8);
@@ -96,27 +88,6 @@
     }
     .name-input::placeholder { color: rgba(255,255,255,0.25); }
     .name-input:focus { border-color: var(--cyan); }
-
-    /* Desktop — scale up text/buttons */
-    @media (hover: hover) and (pointer: fine) {
-      .game-title    { font-size: 4.8rem; margin-bottom: 10px; }
-      .game-tagline  { font-size: 1.5rem; margin-bottom: 36px; }
-      .btn-back-main { font-size: 1.5rem; padding: 18px; margin-bottom: 32px; border-radius: 18px; }
-      .name-label    { font-size: 1.3rem; margin-bottom: 10px; }
-      .name-input    { font-size: 1.5rem; padding: 16px 22px; border-radius: 18px; }
-      .hs-chip       { font-size: 1.2rem; padding: 8px 20px; }
-      .section-label { font-size: 1.4rem; margin-bottom: 14px; }
-      .diff-row      { gap: 16px; margin-bottom: 36px; }
-      .diff-btn      { font-size: 1.4rem; padding: 22px 10px; border-radius: 22px; }
-      .btn-primary   { font-size: 1.8rem; padding: 22px; border-radius: 22px; margin-bottom: 16px; }
-      .btn-secondary { font-size: 1.4rem; padding: 18px; border-radius: 18px; margin-bottom: 14px; }
-      .sound-label   { font-size: 1.3rem; }
-      .sound-toggle  { font-size: 1.3rem; padding: 12px 28px; }
-      .controls-hint { padding: 18px 22px; margin-bottom: 28px; border-radius: 18px; }
-      .controls-hint-title { font-size: 1.2rem; margin-bottom: 12px; }
-      .controls-hint-row   { font-size: 1.2rem; margin-bottom: 8px; }
-      .key { font-size: 1.1rem; padding: 4px 14px; border-radius: 8px; }
-    }
 
     /* Controls hint box (desktop only) */
     .controls-hint {
@@ -581,8 +552,8 @@ initGameStars();
 // In-game controls hint — shown for first 6 seconds, then fades
 var hintAlpha     = 1.0;
 var hintFadeStart = 0;
-var HINT_SHOW_MS  = 5000;
-var HINT_FADE_MS  = 1500;
+var HINT_SHOW_MS  = 2000;
+var HINT_FADE_MS  = 1000;
 
 // ═══════════════════════════════════════════════════════════════
 //  INPUT
@@ -1085,31 +1056,37 @@ function drawControlsHint(ts) {
 
 function drawHUD() {
   var hs = loadHS()[selectedDiff] || 0;
-  ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(0, 0, CW, 40);
-  ctx.font = 'bold 14px Arial'; ctx.textBaseline = 'middle';
+  // Scale HUD font/height based on canvas width — bigger on desktop
+  var hudH    = Math.max(40, Math.round(CW * 0.055));
+  var hudFont = Math.max(14, Math.round(CW * 0.022));
+  var midY    = hudH / 2;
+
+  ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(0, 0, CW, hudH);
+  ctx.font = 'bold ' + hudFont + 'px Arial'; ctx.textBaseline = 'middle';
   ctx.fillStyle = '#fff'; ctx.textAlign = 'right';
-  ctx.fillText('ניקוד: ' + score, CW - 8, 20);
+  ctx.fillText('ניקוד: ' + score, CW - 10, midY);
   ctx.fillStyle = '#c084fc'; ctx.textAlign = 'center';
-  ctx.fillText('שלב ' + level, CW / 2, 20);
+  ctx.fillText('שלב ' + level, CW / 2, midY);
   ctx.fillStyle = '#f87171'; ctx.textAlign = 'left';
-  ctx.fillText('❤ x' + lives, 8, 20);
+  ctx.fillText('❤ x' + lives, 10, midY);
 
   if (shieldActive) {
     ctx.strokeStyle = '#4ade80'; ctx.lineWidth = 2;
     ctx.shadowColor = '#4ade80'; ctx.shadowBlur = 8;
-    ctx.beginPath(); ctx.moveTo(0, 40); ctx.lineTo(CW * Math.max(0, (puTimers.shield || 0) / 8000), 40); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, hudH); ctx.lineTo(CW * Math.max(0, (puTimers.shield || 0) / 8000), hudH); ctx.stroke();
     ctx.shadowBlur = 0;
   }
 
-  var px = 8;
+  var px = 10;
+  var puFont = Math.max(11, Math.round(CW * 0.016));
   Object.keys(puTimers).forEach(function(k) {
     var col = PU_COLORS[k];
     var frac = Math.max(0, (puTimers[k] || 0) / 8000);
-    ctx.fillStyle = col; ctx.font = 'bold 11px Arial';
+    ctx.fillStyle = col; ctx.font = 'bold ' + puFont + 'px Arial';
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    ctx.fillText(PU_EMOJI[k], px, 52);
+    ctx.fillText(PU_EMOJI[k], px, hudH + puFont + 4);
     ctx.strokeStyle = col; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(px, 60); ctx.lineTo(px + 18 * frac, 60); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(px, hudH + puFont * 2 + 6); ctx.lineTo(px + 18 * frac, hudH + puFont * 2 + 6); ctx.stroke();
     px += 28;
   });
 
