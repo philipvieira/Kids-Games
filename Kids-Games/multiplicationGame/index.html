@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>משחק לוח הכפל</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Varela+Round&display=swap');
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Varela Round', 'Arial Rounded MT Bold', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh; display: flex; align-items: center;
+      justify-content: center; padding: 20px;
+    }
+    .container {
+      background: white; border-radius: 30px; padding: 30px 28px;
+      max-width: 540px; width: 100%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      text-align: center; position: relative; overflow: hidden;
+    }
+    .container::before {
+      content:''; position:absolute; top:-60px; left:-60px;
+      width:180px; height:180px; background:rgba(255,193,7,.13); border-radius:50%;
+    }
+    .container::after {
+      content:''; position:absolute; bottom:-40px; right:-40px;
+      width:140px; height:140px; background:rgba(103,126,234,.10); border-radius:50%;
+    }
+    .screen { display:none; }
+    .screen.active { display:block; }
+
+    /* ===== BACK TO MAIN MENU LINK ===== */
+    .btn-back-menu {
+      display: block; width: 100%; margin-bottom: 18px;
+      padding: 14px; background: white; color: #888;
+      border: 2px solid #ddd; border-radius: 18px;
+      font-size: 1.15rem; font-family: inherit;
+      text-decoration: none; cursor: pointer;
+      transition: all .15s; text-align: center;
+      box-sizing: border-box;
+    }
+    .btn-back-menu:hover { background: #f5f5f5; border-color: #bbb; color: #555; }
+
+    /* ===== START SCREEN ===== */
+    .game-title { font-size:2.3rem; color:#5c35c5; margin-bottom:4px; text-shadow:2px 2px 0 rgba(92,53,197,.12); }
+    .game-subtitle { font-size:.95rem; color:#999; margin-bottom:20px; }
+    label { display:block; font-size:1rem; color:#555; margin-bottom:6px; font-weight:bold; }
+    input[type="text"] {
+      width:100%; padding:13px 16px; border:3px solid #ddd; border-radius:16px;
+      font-size:1.05rem; font-family:inherit; text-align:center;
+      transition:border-color .2s; margin-bottom:18px; outline:none;
+    }
+    input[type="text"]:focus { border-color:#667eea; }
+    .diff-label { font-size:1rem; color:#555; margin-bottom:10px; font-weight:bold; }
+    .diff-buttons {
+      display:grid; grid-template-columns:1fr 1fr;
+      gap:9px; margin-bottom:20px;
+    }
+    .diff-btn {
+      padding:11px 7px; border:3px solid #ddd; border-radius:14px;
+      background:white; font-size:.85rem; font-family:inherit;
+      cursor:pointer; transition:all .2s; color:#555; line-height:1.42;
+    }
+    .diff-btn .emoji { font-size:1.4rem; display:block; margin-bottom:2px; }
+    .diff-btn .diff-name { font-size:.95rem; font-weight:bold; display:block; }
+    .diff-btn .diff-desc { font-size:.66rem; opacity:.78; }
+    .diff-btn:hover { border-color:#667eea; background:#f0f0ff; }
+    .diff-btn.selected { border-color:#5c35c5; background:#5c35c5; color:white; transform:scale(1.04); }
+    .diff-btn[data-diff="superchallenge"] { border-color:#c62828; }
+    .diff-btn[data-diff="superchallenge"]:hover { background:#fff5f5; }
+    .diff-btn[data-diff="superchallenge"].selected { background:linear-gradient(135deg,#c62828,#e53935); border-color:#c62828; }
+    .diff-btn[data-diff="challenge"] { border-color:#ff6b35; }
+    .diff-btn[data-diff="challenge"]:hover { background:#fff3ee; }
+    .diff-btn[data-diff="challenge"].selected { background:linear-gradient(135deg,#ff6b35,#f7971e); border-color:#ff6b35; }
+    .diff-btn[data-diff="free"] { border-color:#26a69a; }
+    .diff-btn[data-diff="free"]:hover { background:#e0f2f1; }
+    .diff-btn[data-diff="free"].selected { background:linear-gradient(135deg,#26a69a,#43e97b); border-color:#26a69a; }
+    .btn-primary {
+      width:100%; padding:14px; background:linear-gradient(135deg,#667eea,#764ba2);
+      color:white; border:none; border-radius:18px; font-size:1.15rem;
+      font-family:inherit; cursor:pointer; transition:transform .15s,box-shadow .15s;
+      box-shadow:0 6px 20px rgba(102,126,234,.4);
+    }
+    .btn-primary:hover { transform:translateY(-2px); box-shadow:0 10px 25px rgba(102,126,234,.5); }
+    .btn-primary:active { transform:translateY(0); }
+
+    /* ===== GAME SCREEN ===== */
+    .top-bar { display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:10px; }
+    .name-badge { background:#5c35c5; color:white; border-radius:10px; padding:4px 11px; font-size:.84rem; font-weight:bold; white-space:nowrap; }
+    .level-badge { font-size:.78rem; color:#888; background:#f7f3ff; border-radius:8px; padding:4px 9px; white-space:nowrap; }
+    .q-counter   { font-size:.78rem; color:#aaa;  background:#f5f5f5; border-radius:8px; padding:4px 9px; white-space:nowrap; }
+    .hearts { display:flex; gap:5px; font-size:1.45rem; justify-content:center; margin-bottom:10px; }
+    .heart { transition:transform .3s; }
+    .heart.lost { filter:grayscale(1) opacity(.3); transform:scale(.82); }
+
+    /* timer */
+    .timer-wrap { display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:10px; }
+    .timer-ring-wrap { position:relative; width:52px; height:52px; }
+    .timer-ring-wrap svg { transform:rotate(-90deg); }
+    .timer-ring-bg { fill:none; stroke:#eee; stroke-width:5; }
+    .timer-ring-fg { fill:none; stroke:#43e97b; stroke-width:5; stroke-linecap:round; transition:stroke-dashoffset 1s linear,stroke .4s; }
+    .timer-number { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:1rem; font-weight:bold; color:#5c35c5; }
+    .timer-side { text-align:right; }
+    .timer-label { font-size:.78rem; color:#999; line-height:1.3; }
+    .timer-duration-badge {
+      display:none; margin-top:3px; background:#fff3ee; color:#ff6b35;
+      border:1.5px solid #ff6b35; border-radius:7px;
+      font-size:.68rem; font-weight:bold; padding:2px 7px;
+    }
+
+    /* question */
+    .question-box {
+      background:linear-gradient(135deg,#fff9c4,#fff3e0);
+      border:3px solid #ffd54f; border-radius:22px;
+      padding:20px 18px 16px; margin-bottom:12px;
+    }
+    .question-text { font-size:2.4rem; color:#e65100; font-weight:bold; letter-spacing:2px; }
+    .feedback-msg { min-height:32px; font-size:1.08rem; font-weight:bold; color:#4caf50; margin-bottom:8px; }
+    .feedback-msg.wrong-msg { color:#f44336; }
+
+    /* choices */
+    .choices-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px; }
+    .choice-btn {
+      padding:16px 8px; font-size:1.55rem; font-weight:bold;
+      font-family:inherit; border:3px solid #ddd; border-radius:16px;
+      background:white; cursor:pointer; transition:all .18s; color:#333;
+    }
+    .choice-btn:hover:not(:disabled) { border-color:#667eea; background:#f0f0ff; transform:scale(1.04); }
+    .choice-btn.correct-choice { border-color:#4caf50; background:#e8f5e9; color:#2e7d32; animation:pop .4s; }
+    .choice-btn.wrong-choice   { border-color:#f44336; background:#ffebee; color:#c62828; animation:shake .4s; }
+    .choice-btn.reveal-correct { border-color:#4caf50; background:#e8f5e9; color:#2e7d32; }
+    .choice-btn:disabled { cursor:not-allowed; opacity:.7; }
+
+    /* footer */
+    .game-footer { display:flex; align-items:center; justify-content:space-between; margin-top:4px; gap:8px; }
+    .score-display { font-size:.95rem; color:#888; }
+    .score-display span { color:#5c35c5; font-weight:bold; font-size:1.05rem; }
+    .btn-stop {
+      padding:8px 14px; background:white; color:#e53935;
+      border:2px solid #e53935; border-radius:11px;
+      font-size:.82rem; font-family:inherit; cursor:pointer;
+      transition:all .15s; white-space:nowrap;
+    }
+    .btn-stop:hover { background:#ffebee; }
+
+    @keyframes pop   { 0%{transform:scale(1)} 50%{transform:scale(1.15)} 100%{transform:scale(1)} }
+    @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-8px)} 40%{transform:translateX(8px)} 60%{transform:translateX(-5px)} 80%{transform:translateX(5px)} }
+
+    /* ===== END SCREEN ===== */
+    .end-title { font-size:1.85rem; margin-bottom:5px; }
+    .end-sub   { color:#888; font-size:.92rem; margin-bottom:18px; }
+    .result-summary { display:flex; justify-content:center; gap:9px; margin-bottom:18px; flex-wrap:wrap; }
+    .result-card { background:#f7f3ff; border-radius:14px; padding:11px 14px; min-width:70px; }
+    .result-card .rc-val { font-size:1.75rem; font-weight:bold; color:#5c35c5; }
+    .result-card .rc-lbl { font-size:.72rem; color:#888; margin-top:2px; }
+    .mistakes-section { text-align:right; margin-bottom:16px; }
+    .mistakes-title { font-size:1rem; color:#e65100; font-weight:bold; margin-bottom:8px; display:flex; align-items:center; gap:7px; }
+    .mistake-item { background:#fff3e0; border:2px solid #ffcc80; border-radius:13px; padding:11px 13px; margin-bottom:9px; }
+    .mistake-q       { font-size:1rem;   color:#bf360c; font-weight:bold; }
+    .mistake-explain { font-size:.85rem; color:#666;    margin-top:4px; line-height:1.55; }
+    .history-section { margin-top:6px; margin-bottom:16px; }
+    .history-title { font-size:.95rem; color:#5c35c5; font-weight:bold; margin-bottom:9px; text-align:right; }
+    .history-table { width:100%; border-collapse:collapse; font-size:.83rem; }
+    .history-table th { background:#5c35c5; color:white; padding:8px 5px; font-weight:bold; }
+    .history-table td { padding:7px 5px; border-bottom:1px solid #eee; color:#444; }
+    .history-table tr:nth-child(even) td { background:#f9f6ff; }
+    .history-table tr:last-child td { border-bottom:none; }
+    .no-history { color:#bbb; font-size:.85rem; text-align:center; padding:10px; }
+
+    /* ===== FREE PLAY SCREEN ===== */
+    .free-title { font-size:1.7rem; color:#5c35c5; margin-bottom:4px; }
+    .free-sub   { font-size:.88rem; color:#999; margin-bottom:16px; }
+    .free-table-wrap { overflow-x:auto; margin-bottom:16px; }
+    .free-table {
+      display:inline-grid;
+      grid-template-columns:repeat(11, 36px);
+      gap:3px;
+    }
+    .fc {
+      width:36px; height:36px; display:flex; align-items:center;
+      justify-content:center; border-radius:7px;
+      font-size:.82rem; font-weight:bold; transition:all .2s; user-select:none;
+    }
+    .fc.header-corner { background:#5c35c5; color:white; font-size:.8rem; }
+    .fc.header-row    { background:#7c54d4; color:white; font-size:.8rem; }
+    .fc.header-col    { background:#7c54d4; color:white; font-size:.8rem; }
+    .fc.data-cell     { background:#f0f0f0; color:#f0f0f0; cursor:pointer; border:2px solid #e0e0e0; }
+    .fc.data-cell:hover { background:#dde0ff; border-color:#667eea; color:#dde0ff; }
+    .fc.revealed      { background:#e8f5e9; color:#2e7d32; border-color:#a5d6a7; cursor:pointer; animation:pop .3s; }
+    .fc.revealed:hover { background:#c8e6c9; }
+    .free-hint { font-size:.82rem; color:#aaa; margin-bottom:14px; }
+    .btn-secondary {
+      padding:12px 28px; background:white; color:#5c35c5;
+      border:2px solid #5c35c5; border-radius:16px;
+      font-size:1rem; font-family:inherit; cursor:pointer; transition:all .15s;
+    }
+    .btn-secondary:hover { background:#f0f0ff; }
+    .reveal-all-row { margin-bottom:12px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+    .btn-reveal-all {
+      padding:9px 20px; background:linear-gradient(135deg,#43e97b,#26a69a);
+      color:white; border:none; border-radius:13px;
+      font-size:.9rem; font-family:inherit; cursor:pointer;
+      box-shadow:0 4px 14px rgba(67,233,123,.35); transition:transform .15s;
+    }
+    .btn-reveal-all:hover { transform:translateY(-2px); }
+    .btn-hide-all {
+      padding:9px 20px; background:white; color:#666;
+      border:2px solid #ccc; border-radius:13px;
+      font-size:.9rem; font-family:inherit; cursor:pointer; transition:all .15s;
+    }
+    .btn-hide-all:hover { background:#f5f5f5; }
+
+    /* toast */
+    .toast {
+      position:fixed; top:20px; left:50%;
+      transform:translateX(-50%) translateY(-80px);
+      background:#ff6b35; color:white; border-radius:14px;
+      padding:9px 20px; font-size:.95rem; font-weight:bold;
+      box-shadow:0 6px 20px rgba(255,107,53,.45);
+      transition:transform .4s cubic-bezier(.34,1.56,.64,1),opacity .3s;
+      opacity:0; z-index:1000; white-space:nowrap;
+    }
+    .toast.show { transform:translateX(-50%) translateY(0); opacity:1; }
+
+    #confettiCanvas { position:fixed; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:999; }
+
+    @media (max-width:440px) {
+      .container { padding:22px 13px; }
+      .game-title { font-size:1.85rem; }
+      .question-text { font-size:1.9rem; }
+      .choice-btn { font-size:1.25rem; padding:13px 5px; }
+      .free-table { grid-template-columns:repeat(11,30px); }
+      .fc { width:30px; height:30px; font-size:.72rem; }
+    }
+  </style>
+</head>
+<body>
+<canvas id="confettiCanvas"></canvas>
+<div class="toast" id="toastMsg"></div>
+
+<div class="container">
+
+  <!-- ===== SCREEN 1: START ===== -->
+  <div id="screen-start" class="screen active">
+    <a href="../mainMenu/index.html" class="btn-back-menu">🏠 חזרה לתפריט הראשי</a>
+    <div class="game-title">✖️ לוח הכפל</div>
+    <div class="game-subtitle">משחק מתמטיקה מהנה לילדים!</div>
+
+    <label for="playerName">מה השם שלך? 👤</label>
+    <input type="text" id="playerName" placeholder="כתוב את שמך כאן..." maxlength="20" />
+
+    <div class="diff-label">בחר רמת קושי:</div>
+    <div class="diff-buttons">
+      <button class="diff-btn" data-diff="easy">
+        <span class="emoji">😊</span>
+        <span class="diff-name">קל</span>
+        <span class="diff-desc">×1 עד ×5<br>בחירה מרשימה • ∞</span>
+      </button>
+      <button class="diff-btn selected" data-diff="medium">
+        <span class="emoji">😎</span>
+        <span class="diff-name">בינוני</span>
+        <span class="diff-desc">×1 עד ×10<br>⌛ 30 שנ' → יורד כל 5 שאלות</span>
+      </button>
+      <button class="diff-btn" data-diff="hard">
+        <span class="emoji">🔥</span>
+        <span class="diff-name">קשה</span>
+        <span class="diff-desc">×1 עד ×12<br>⌛ 30 שנ' → יורד כל 5 שאלות</span>
+      </button>
+      <button class="diff-btn" data-diff="challenge">
+        <span class="emoji">⚡</span>
+        <span class="diff-name">אתגר!</span>
+        <span class="diff-desc">×1 עד ×15<br>⌛ 30 שנ' → יורד כל 5 שאלות</span>
+      </button>
+      <button class="diff-btn" data-diff="superchallenge">
+        <span class="emoji">💀</span>
+        <span class="diff-name">אתגר האתגרים</span>
+        <span class="diff-desc">×1 עד ×20<br>⌛ יורד 4 שנ' כל 3 שאלות!</span>
+      </button>
+      <button class="diff-btn" data-diff="free">
+        <span class="emoji">🎲</span>
+        <span class="diff-name">משחק חופשי</span>
+        <span class="diff-desc">גלה את לוח הכפל<br>לחץ על תא לראות תשובה</span>
+      </button>
+    </div>
+
+    <button class="btn-primary" onclick="startGame()">🚀 יאללה, מתחילים!</button>
+  </div>
+
+  <!-- ===== SCREEN 2: GAME ===== -->
+  <div id="screen-game" class="screen">
+    <div class="top-bar">
+      <span class="name-badge" id="gamePlayerName">שחקן</span>
+      <span class="level-badge" id="gameLevel">בינוני</span>
+      <span class="q-counter"   id="qCounter">שאלה 1</span>
+    </div>
+
+    <div class="hearts" id="hearts">
+      <span class="heart">❤️</span>
+      <span class="heart">❤️</span>
+      <span class="heart">❤️</span>
+    </div>
+
+    <div class="timer-wrap" id="timerWrap" style="display:none">
+      <div class="timer-ring-wrap">
+        <svg width="52" height="52" viewBox="0 0 52 52">
+          <circle class="timer-ring-bg" cx="26" cy="26" r="21"/>
+          <circle class="timer-ring-fg" id="timerRing" cx="26" cy="26" r="21"
+                  stroke-dasharray="131.95" stroke-dashoffset="0"/>
+        </svg>
+        <div class="timer-number" id="timerNumber">30</div>
+      </div>
+      <div class="timer-side">
+        <div class="timer-label">שניות<br>נותרו</div>
+        <span class="timer-duration-badge" id="timerDurationBadge">⌛ 30 שנ'</span>
+      </div>
+    </div>
+
+    <div class="question-box">
+      <div class="question-text" id="questionText">? × ? = ?</div>
+    </div>
+
+    <div class="feedback-msg" id="feedbackMsg"></div>
+
+    <div id="choicesArea">
+      <div class="choices-grid" id="choicesGrid"></div>
+    </div>
+
+    <div class="game-footer">
+      <div class="score-display">ניקוד: <span id="scoreDisplay">0</span></div>
+      <button class="btn-stop" onclick="stopGameManual()">🏁 סיים משחק</button>
+    </div>
+  </div>
+
+  <!-- ===== SCREEN 3: END ===== -->
+  <div id="screen-end" class="screen">
+    <div class="end-title" id="endTitle">🎉 כל הכבוד!</div>
+    <div class="end-sub"   id="endSub">סיימת את המשחק</div>
+
+    <div class="result-summary">
+      <div class="result-card"><div class="rc-val" id="finalScore">0</div><div class="rc-lbl">ניקוד</div></div>
+      <div class="result-card"><div class="rc-val" id="finalQuestions">0</div><div class="rc-lbl">שאלות</div></div>
+      <div class="result-card"><div class="rc-val" id="finalCorrect">0</div><div class="rc-lbl">נכון ✅</div></div>
+      <div class="result-card"><div class="rc-val" id="finalWrong">0</div><div class="rc-lbl">טעות ❌</div></div>
+    </div>
+
+    <div class="mistakes-section" id="mistakesSection" style="display:none">
+      <div class="mistakes-title">📝 איפה טעית — ואיך לתקן:</div>
+      <div id="mistakesList"></div>
+    </div>
+
+    <div class="history-section">
+      <div class="history-title">📊 תוצאות משחקים קודמים:</div>
+      <div id="historyContainer"></div>
+    </div>
+
+    <button class="btn-primary" onclick="goToStart()" style="margin-bottom:12px">🔄 משחק חדש</button>
+    <a href="../mainMenu/index.html" class="btn-back-menu">🏠 חזרה לתפריט הראשי</a>
+  </div>
+
+  <!-- ===== SCREEN 4: FREE PLAY ===== -->
+  <div id="screen-free" class="screen">
+    <div class="free-title">🎲 משחק חופשי</div>
+    <div class="free-sub">לחץ על תא לגלות את התשובה — לחץ שוב כדי להסתיר</div>
+    <div class="reveal-all-row">
+      <button class="btn-reveal-all" onclick="revealAll()">👁 גלה הכל</button>
+      <button class="btn-hide-all"   onclick="hideAll()">🙈 הסתר הכל</button>
+    </div>
+    <div class="free-hint">⬇️ גלול ימינה אם הטבלה גדולה מהמסך</div>
+    <div class="free-table-wrap">
+      <div class="free-table" id="freeTable"></div>
+    </div>
+    <button class="btn-secondary" onclick="goToStart()">← חזור לתפריט</button>
+  </div>
+
+</div><!-- /container -->
+
+<script>
+// ============================================================
+//  CONFIG
+// ============================================================
+const MAX_MISTAKES  = 3;
+const BASE_TIMER    = 30;
+const MIN_TIMER     = 5;
+const CIRCUMFERENCE = 2 * Math.PI * 21; // r=21 → ~131.95
+
+const DIFFICULTY_RANGES = {
+  easy:           { max:5,  label:'קל',             pts:5,  timer:false, step:5, dec:5  },
+  medium:         { max:10, label:'בינוני',           pts:10, timer:true,  step:5, dec:5  },
+  hard:           { max:12, label:'קשה',             pts:15, timer:true,  step:5, dec:5  },
+  challenge:      { max:15, label:'⚡ אתגר!',         pts:20, timer:true,  step:5, dec:5  },
+  superchallenge: { max:20, label:'💀 אתגר האתגרים',  pts:30, timer:true,  step:3, dec:4  },
+  free:           { free:true, label:'🎲 משחק חופשי' }
+};
+
+const PRAISE = [
+  '🌟 כל הכבוד!','🎉 מעולה!','🔥 וואו!','✨ מדהים!',
+  '👏 ברכות!','💪 גאוני!','😍 יפהפה!','🚀 אלוף!',
+  '🎯 בול!','🏆 אלוף העולם!','⭐ מדהים ממש!','🎊 פנטסטי!'
+];
+
+// ============================================================
+//  STATE
+// ============================================================
+let playerName          = '';
+let difficulty          = 'medium';
+let score               = 0;
+let mistakes            = 0;
+let questionIdx         = 0;
+let currentQuestion     = null;
+let usedQuestions       = new Set();
+let mistakeLog          = [];
+let gameHistory         = [];
+let timerInterval       = null;
+let timerLeft           = BASE_TIMER;
+let currentTimerDuration = BASE_TIMER;
+let questionLocked      = false;
+let manualStop          = false;
+let prevTier            = 0;
+
+// ============================================================
+//  DIFFICULTY BUTTONS
+// ============================================================
+document.querySelectorAll('.diff-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    difficulty = btn.dataset.diff;
+  });
+});
+
+// ============================================================
+//  HELPERS
+// ============================================================
+function randInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function generateQuestion() {
+  const maxN = DIFFICULTY_RANGES[difficulty].max;
+  let a, b, key, att = 0;
+  do {
+    a = randInt(1, maxN); b = randInt(1, maxN);
+    key = Math.min(a,b)+'x'+Math.max(a,b);
+    if (++att > 300) usedQuestions.clear();
+  } while (usedQuestions.has(key));
+  usedQuestions.add(key);
+  return { a, b, answer: a*b };
+}
+
+function generateChoices(correct) {
+  const set = new Set([correct]);
+  let t = 0;
+  while (set.size < 4) {
+    const v = correct + randInt(1,14) * (Math.random()<.5?1:-1);
+    if (v > 0) set.add(v);
+    if (++t > 300) break;
+  }
+  return [...set].sort(() => Math.random()-.5);
+}
+
+function randomPraise() { return PRAISE[Math.floor(Math.random()*PRAISE.length)]; }
+
+function updateHearts() {
+  document.querySelectorAll('#hearts .heart').forEach((h,i) => {
+    h.classList.toggle('lost', i >= MAX_MISTAKES - mistakes);
+  });
+}
+
+function showFeedback(msg, isWrong) {
+  const el = document.getElementById('feedbackMsg');
+  el.textContent = msg;
+  el.className   = 'feedback-msg' + (isWrong ? ' wrong-msg' : '');
+}
+
+// ============================================================
+//  TIMER DURATION (decreases per tier)
+// ============================================================
+function getCurrentTimerDuration() {
+  const cfg  = DIFFICULTY_RANGES[difficulty];
+  const tier = Math.floor((questionIdx - 1) / cfg.step);
+  return Math.max(MIN_TIMER, BASE_TIMER - tier * cfg.dec);
+}
+
+// ============================================================
+//  TOAST
+// ============================================================
+let toastTO = null;
+function showToast(msg) {
+  const el = document.getElementById('toastMsg');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastTO);
+  toastTO = setTimeout(() => el.classList.remove('show'), 2300);
+}
+
+// ============================================================
+//  TIMER
+// ============================================================
+function startTimer() {
+  stopTimer();
+  currentTimerDuration = getCurrentTimerDuration();
+  timerLeft = currentTimerDuration;
+
+  const badge = document.getElementById('timerDurationBadge');
+  badge.style.display = 'inline-block';
+  badge.textContent   = '⌛ ' + currentTimerDuration + ' שנ\'';
+
+  const ring  = document.getElementById('timerRing');
+  const numEl = document.getElementById('timerNumber');
+  updateTimerUI(ring, numEl);
+
+  timerInterval = setInterval(() => {
+    timerLeft--;
+    updateTimerUI(ring, numEl);
+    if (timerLeft <= 0) { stopTimer(); onTimerExpired(); }
+  }, 1000);
+}
+
+function stopTimer() { clearInterval(timerInterval); timerInterval = null; }
+
+function updateTimerUI(ring, numEl) {
+  ring.style.strokeDashoffset = CIRCUMFERENCE * (1 - timerLeft / currentTimerDuration);
+  numEl.textContent = timerLeft;
+  const frac = timerLeft / currentTimerDuration;
+  ring.style.stroke = frac <= .25 ? '#f44336' : frac <= .5 ? '#ff9800' : '#43e97b';
+}
+
+function onTimerExpired() {
+  if (questionLocked) return;
+  questionLocked = true;
+  mistakes++; updateHearts();
+  showFeedback('⏰ נגמר הזמן! הנה הפסדת לב', true);
+  mistakeLog.push({ a:currentQuestion.a, b:currentQuestion.b, given:'—', correct:currentQuestion.answer, timeout:true });
+  revealCorrectChoice();
+  if (mistakes >= MAX_MISTAKES) setTimeout(endGame, 1000);
+  else setTimeout(nextQuestion, 1300);
+}
+
+// ============================================================
+//  START GAME
+// ============================================================
+function startGame() {
+  if (difficulty === 'free') { buildFreeTable(); showScreen('screen-free'); return; }
+
+  const nameVal = document.getElementById('playerName').value.trim();
+  if (!nameVal) {
+    const inp = document.getElementById('playerName');
+    inp.focus(); inp.style.borderColor = '#f44336';
+    setTimeout(() => inp.style.borderColor = '#ddd', 1500);
+    return;
+  }
+  playerName  = nameVal;
+  score       = 0; mistakes = 0; questionIdx = 0;
+  mistakeLog  = []; manualStop = false; prevTier = 0;
+  usedQuestions.clear(); stopTimer();
+
+  document.getElementById('gamePlayerName').textContent = playerName;
+  document.getElementById('gameLevel').textContent      = DIFFICULTY_RANGES[difficulty].label;
+  document.getElementById('scoreDisplay').textContent   = '0';
+  updateHearts();
+
+  const cfg = DIFFICULTY_RANGES[difficulty];
+  document.getElementById('timerWrap').style.display = cfg.timer ? 'flex' : 'none';
+
+  loadHistory();
+  showScreen('screen-game');
+  nextQuestion();
+}
+
+// ============================================================
+//  QUESTION FLOW
+// ============================================================
+function nextQuestion() {
+  stopTimer();
+  questionLocked  = false;
+  currentQuestion = generateQuestion();
+  questionIdx++;
+
+  document.getElementById('qCounter').textContent     = 'שאלה ' + questionIdx;
+  document.getElementById('questionText').textContent = currentQuestion.a + ' × ' + currentQuestion.b + ' = ?';
+  document.getElementById('feedbackMsg').textContent  = '';
+  document.getElementById('feedbackMsg').className    = 'feedback-msg';
+
+  const cfg = DIFFICULTY_RANGES[difficulty];
+  if (cfg.timer) {
+    const newTier = Math.floor((questionIdx - 1) / cfg.step);
+    if (newTier > prevTier) {
+      prevTier = newTier;
+      const newDur = getCurrentTimerDuration();
+      showToast(newDur > MIN_TIMER
+        ? '⌛ הזמן ירד ל-' + newDur + ' שניות!'
+        : '🔥 הגעת למינימום — ' + MIN_TIMER + ' שניות!');
+    }
+  }
+
+  renderChoices();
+  if (cfg.timer) startTimer();
+}
+
+// ============================================================
+//  MULTIPLE CHOICE
+// ============================================================
+function renderChoices() {
+  const grid    = document.getElementById('choicesGrid');
+  const choices = generateChoices(currentQuestion.answer);
+  grid.innerHTML = '';
+  choices.forEach(val => {
+    const btn = document.createElement('button');
+    btn.className   = 'choice-btn';
+    btn.textContent = val;
+    btn.addEventListener('click', () => handleChoiceClick(btn, val));
+    grid.appendChild(btn);
+  });
+}
+
+function handleChoiceClick(btn, val) {
+  if (questionLocked) return;
+  questionLocked = true; stopTimer();
+  const correct = currentQuestion.answer;
+  document.querySelectorAll('.choice-btn').forEach(b => b.disabled = true);
+
+  if (val === correct) {
+    btn.classList.add('correct-choice');
+    score += DIFFICULTY_RANGES[difficulty].pts;
+    document.getElementById('scoreDisplay').textContent = score;
+    showFeedback(randomPraise(), false);
+    setTimeout(nextQuestion, 900);
+  } else {
+    btn.classList.add('wrong-choice');
+    revealCorrectChoice();
+    mistakes++; updateHearts();
+    showFeedback('אופס! זו לא התשובה הנכונה 😅', true);
+    mistakeLog.push({ a:currentQuestion.a, b:currentQuestion.b, given:val, correct, timeout:false });
+    if (mistakes >= MAX_MISTAKES) setTimeout(endGame, 1100);
+    else setTimeout(nextQuestion, 1100);
+  }
+}
+
+function revealCorrectChoice() {
+  document.querySelectorAll('.choice-btn').forEach(b => {
+    if (parseInt(b.textContent) === currentQuestion.answer) b.classList.add('reveal-correct');
+  });
+}
+
+// ============================================================
+//  MANUAL STOP
+// ============================================================
+function stopGameManual() {
+  if (questionIdx === 0) { goToStart(); return; }
+  manualStop = true; stopTimer(); endGame();
+}
+
+// ============================================================
+//  END GAME
+// ============================================================
+function endGame() {
+  stopTimer();
+  const realCorrect = questionIdx - mistakeLog.length;
+  const pct = questionIdx > 0 ? realCorrect / questionIdx : 0;
+
+  let title, sub;
+  if (manualStop) {
+    title = '🏁 סיימת את המשחק!';
+    sub   = 'ענית על ' + questionIdx + ' שאלות';
+  } else if (mistakes >= MAX_MISTAKES) {
+    title = '😢 נגמרו הלבבות!';
+    sub   = 'הגעת עד שאלה ' + questionIdx + ' — בפעם הבאה תצליח יותר!';
+  } else if (pct === 1) {
+    title = '🏆 מושלם לגמרי!';
+    sub   = 'ענית נכון על כל ' + questionIdx + ' השאלות!';
+  } else if (pct >= .8) {
+    title = '🎉 כל הכבוד, ' + playerName + '!';
+    sub   = 'ממש טוב!';
+  } else {
+    title = '💪 יש על מה לעבוד!';
+    sub   = 'תתרגל וזה ישתפר!';
+  }
+
+  document.getElementById('endTitle').textContent       = title;
+  document.getElementById('endSub').textContent         = sub;
+  document.getElementById('finalScore').textContent     = score;
+  document.getElementById('finalQuestions').textContent = questionIdx;
+  document.getElementById('finalCorrect').textContent   = realCorrect;
+  document.getElementById('finalWrong').textContent     = mistakeLog.length;
+
+  if (mistakeLog.length > 0) {
+    document.getElementById('mistakesSection').style.display = 'block';
+    const list = document.getElementById('mistakesList');
+    list.innerHTML = '';
+    mistakeLog.forEach(m => {
+      const givenTxt = m.timeout
+        ? '<span style="color:#ff9800">לא ענית בזמן</span>'
+        : '<span style="color:#f44336">' + escHtml(String(m.given)) + '</span>';
+      const div = document.createElement('div');
+      div.className = 'mistake-item';
+      div.innerHTML =
+        '<div class="mistake-q">' +
+          m.a + ' × ' + m.b + ' = ' + givenTxt +
+          ' — צריך להיות <span style="color:#2e7d32">' + m.correct + '</span>' +
+        '</div><div class="mistake-explain">' + buildExplanation(m.a, m.b) + '</div>';
+      list.appendChild(div);
+    });
+  } else {
+    document.getElementById('mistakesSection').style.display = 'none';
+  }
+
+  saveHistory({ name:playerName, difficulty:DIFFICULTY_RANGES[difficulty].label, score, correct:realCorrect, total:questionIdx, date:todayStr() });
+  renderHistory();
+  if (mistakeLog.length === 0 && questionIdx >= 5) launchConfetti();
+  showScreen('screen-end');
+}
+
+// ============================================================
+//  EXPLANATION
+// ============================================================
+function buildExplanation(a, b) {
+  let tips;
+  if (a===1||b===1)      { tips='כפל ב-1 תמיד שווה לאותו המספר: '+Math.max(a,b)+'×1='+Math.max(a,b)+'.'; }
+  else if (a===2||b===2) { const o=a===2?b:a; tips='כשמכפילים ב-2 פשוט מוסיפים לעצמו: '+o+'+'+o+'='+o*2+'.'; }
+  else if (a===5||b===5) { tips='כשמכפילים ב-5 התוצאה מסתיימת ב-0 או 5.'; }
+  else if (a===10||b===10){ tips='כשמכפילים ב-10 מוסיפים אפס בסוף: '+Math.max(a,b)+'0.'; }
+  else {
+    const base=Math.min(a,b),rep=Math.max(a,b);
+    const steps=[];
+    for(let i=1;i<=base;i++) steps.push(rep+'×'+i+'='+rep*i);
+    tips='ספור בקבוצות: '+steps.join(', ')+'.';
+  }
+  return tips+' התשובה הנכונה היא <strong>'+(a*b)+'</strong>.';
+}
+
+// ============================================================
+//  FREE PLAY TABLE
+// ============================================================
+function buildFreeTable() {
+  const table = document.getElementById('freeTable');
+  table.innerHTML = '';
+
+  const corner = document.createElement('div');
+  corner.className = 'fc header-corner'; corner.textContent = '×';
+  table.appendChild(corner);
+
+  for (let c=1; c<=10; c++) {
+    const h = document.createElement('div');
+    h.className='fc header-row'; h.textContent=c;
+    table.appendChild(h);
+  }
+
+  for (let r=1; r<=10; r++) {
+    const rh = document.createElement('div');
+    rh.className='fc header-col'; rh.textContent=r;
+    table.appendChild(rh);
+
+    for (let c=1; c<=10; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'fc data-cell';
+      cell.dataset.val = r*c;
+      cell.textContent = r*c;
+      cell.addEventListener('click', () => toggleCell(cell));
+      table.appendChild(cell);
+    }
+  }
+}
+
+function toggleCell(cell) { cell.classList.toggle('revealed'); }
+function revealAll() { document.querySelectorAll('#freeTable .data-cell').forEach(c => c.classList.add('revealed')); }
+function hideAll()   { document.querySelectorAll('#freeTable .data-cell').forEach(c => c.classList.remove('revealed')); }
+
+// ============================================================
+//  HISTORY
+// ============================================================
+const HISTORY_KEY = 'multiplicationHistory';
+function loadHistory() {
+  try { gameHistory = JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; }
+  catch(e) { gameHistory = []; }
+}
+function saveHistory(entry) {
+  loadHistory();
+  gameHistory.unshift(entry);
+  if (gameHistory.length > 10) gameHistory = gameHistory.slice(0,10);
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(gameHistory));
+}
+function renderHistory() {
+  const container = document.getElementById('historyContainer');
+  if (!gameHistory || gameHistory.length <= 1) {
+    container.innerHTML = '<div class="no-history">עדיין אין משחקים קודמים להצגה.</div>';
+    return;
+  }
+  const prev = gameHistory.slice(1);
+  let html = '<table class="history-table"><thead><tr><th>שם</th><th>רמה</th><th>ניקוד</th><th>שאלות</th><th>תאריך</th></tr></thead><tbody>';
+  prev.forEach(g => {
+    html += '<tr><td>'+escHtml(g.name)+'</td><td>'+escHtml(g.difficulty)+'</td><td><strong>'+g.score+'</strong></td><td>'+g.correct+'/'+g.total+'</td><td style="font-size:.76rem;color:#aaa">'+g.date+'</td></tr>';
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+function todayStr() { const d=new Date(); return d.getDate()+'/'+(d.getMonth()+1)+'/'+d.getFullYear(); }
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ============================================================
+//  NAVIGATION
+// ============================================================
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+function goToStart() { stopTimer(); stopConfetti(); showScreen('screen-start'); }
+
+// ============================================================
+//  CONFETTI
+// ============================================================
+let confettiAnim = null;
+const canvas = document.getElementById('confettiCanvas');
+const ctx    = canvas.getContext('2d');
+let pieces   = [];
+function launchConfetti() {
+  canvas.width=window.innerWidth; canvas.height=window.innerHeight; pieces=[];
+  const colors=['#5c35c5','#ff6b6b','#ffd54f','#43e97b','#667eea','#ff9800','#ff6b35'];
+  for(let i=0;i<180;i++){
+    pieces.push({
+      x:Math.random()*canvas.width, y:Math.random()*canvas.height-canvas.height,
+      w:randInt(8,16), h:randInt(4,10),
+      color:colors[Math.floor(Math.random()*colors.length)],
+      rot:Math.random()*360, rotSpeed:(Math.random()-.5)*6,
+      vy:randInt(3,7), vx:(Math.random()-.5)*3
+    });
+  }
+  animateConfetti();
+}
+function animateConfetti() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  pieces.forEach(p=>{
+    ctx.save(); ctx.translate(p.x+p.w/2,p.y+p.h/2); ctx.rotate(p.rot*Math.PI/180);
+    ctx.fillStyle=p.color; ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h); ctx.restore();
+    p.y+=p.vy; p.x+=p.vx; p.rot+=p.rotSpeed;
+  });
+  pieces=pieces.filter(p=>p.y<canvas.height+20);
+  if(pieces.length>0) confettiAnim=requestAnimationFrame(animateConfetti);
+  else ctx.clearRect(0,0,canvas.width,canvas.height);
+}
+function stopConfetti() {
+  if(confettiAnim){cancelAnimationFrame(confettiAnim);confettiAnim=null;}
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+}
+
+// ============================================================
+//  MUSIC
+// ============================================================
+const bgMusic = new Audio('multipicationmusic.mp3');
+bgMusic.loop   = true;
+bgMusic.volume = 0.55;
+
+function startMusic() {
+  if (!bgMusic.paused) return;
+  const p = bgMusic.play();
+  if (p !== undefined) p.catch(() => {});
+}
+
+function stopMusic() {
+  bgMusic.pause();
+  bgMusic.currentTime = 0;
+}
+
+// Unlock and start on first user gesture
+function _musicUnlock() {
+  if (!bgMusic.paused) return;
+  bgMusic.play().then(() => {
+    ['pointerdown','click','touchstart','keydown'].forEach(ev =>
+      document.removeEventListener(ev, _musicUnlock, true)
+    );
+  }).catch(() => {});
+}
+
+['pointerdown','click','touchstart','keydown'].forEach(ev =>
+  document.addEventListener(ev, _musicUnlock, { capture: true, passive: true })
+);
+
+startMusic();
+</script>
+</body>
+</html>
