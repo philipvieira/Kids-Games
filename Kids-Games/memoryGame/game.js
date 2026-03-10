@@ -314,10 +314,12 @@ const UI = {
   updateMenuBest() {
     const best = Storage.getBest(State.mode, State.theme, State.diff);
     const el   = document.getElementById('menu-best');
-    const themeLabel = State.theme === 'animals' ? 'חיות' : State.theme === 'space' ? 'חלל' : 'אמוג\'י';
-    el.textContent = best > 0
-      ? `🏆 שיא: ${best} | ${MODE_LABELS[State.mode]} · ${themeLabel} · ${DIFF[State.diff].label}`
-      : '';
+    if (best > 0) {
+      const themeLabel = State.theme === 'animals' ? 'חיות' : State.theme === 'space' ? 'חלל' : 'אמוג\'י';
+      el.innerHTML = `🏆 שיא: <strong>${best}</strong><br><small>${MODE_LABELS[State.mode]} · ${themeLabel} · ${DIFF[State.diff].label}</small>`;
+    } else {
+      el.innerHTML = '';
+    }
   },
 
   // Power-up button
