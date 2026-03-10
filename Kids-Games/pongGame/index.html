@@ -158,6 +158,7 @@
       border: 2px solid rgba(255,255,255,0.12);
       box-shadow: 0 0 40px rgba(0,229,255,0.15), 0 0 80px rgba(0,0,0,0.5);
       max-width: 100vw;
+      direction: ltr;
     }
     .game-footer { margin-top: 8px; font-size: 0.82rem; color: rgba(255,255,255,0.35); text-align: center; }
     .footer-mouse { }
@@ -187,6 +188,7 @@
       align-items: center; justify-content: center;
       background: rgba(0,0,0,0.55); z-index: 10;
       flex-direction: column; gap: 10px;
+      cursor: pointer;
     }
     #overlay.visible { display: flex; }
     #overlay-text { font-size: 3rem; font-weight: bold; color: #fff; text-shadow: 0 0 20px rgba(0,229,255,0.8); }
@@ -336,7 +338,7 @@
 
 <!-- ════════ GAME SCREEN ════════ -->
 <div id="game-screen" class="screen">
-  <div id="overlay" onclick="if(paused) togglePause()">
+  <div id="overlay">
     <div id="overlay-text">3</div>
     <div id="overlay-sub"></div>
   </div>
@@ -359,7 +361,7 @@
   <div class="game-footer">⬆ / ⬇ מקלדת <span class="footer-mouse">&nbsp;|&nbsp; 🖱️ הזזת העכבר</span> &nbsp;|&nbsp; רווח — השהה</div>
   <div class="touch-controls">
     <button class="touch-btn"       ontouchstart="touchUp=true"   ontouchend="touchUp=false">▲</button>
-    <button class="btn-pause-mobile" onclick="togglePause()">⏸</button>
+    <button class="btn-pause-mobile" id="btn-pause-mobile">⏸</button>
     <button class="touch-btn"       ontouchstart="touchDown=true" ontouchend="touchDown=false">▼</button>
   </div>
 </div>
@@ -848,6 +850,20 @@
     if (e.key === ' ') { e.preventDefault(); togglePause(); }
   });
   document.addEventListener('keyup', e => { keysDown[e.key] = false; });
+
+  // Overlay tap — unpause on both click and touchstart (mobile)
+  const overlayEl = document.getElementById('overlay');
+  function overlayTap(e) {
+    if (paused) { e.preventDefault(); togglePause(); }
+  }
+  overlayEl.addEventListener('click',      overlayTap);
+  overlayEl.addEventListener('touchstart', overlayTap, { passive: false });
+
+  // Pause button — works on both mouse click and touch
+  const pauseBtn = document.getElementById('btn-pause-mobile');
+  function pauseBtnTap(e) { e.preventDefault(); togglePause(); }
+  pauseBtn.addEventListener('click',      pauseBtnTap);
+  pauseBtn.addEventListener('touchstart', pauseBtnTap, { passive: false });
 
   function getCanvasY(e) {
     const rect    = canvas.getBoundingClientRect();
