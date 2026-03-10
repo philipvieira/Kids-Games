@@ -523,7 +523,7 @@ let enemyShootTimer = 0;
 let ufo = null, ufoTimer = 0;
 const UFO_INTERVAL = 18000;
 
-let powerups = [], scoreMultiplier = 1, shieldActive = false, doubleShot = false, rapidFire = false, puTimers = {};
+let powerups = [], scoreMultiplier = 1, shieldActive = false, shotLevel = 1, rapidFire = false, puTimers = {};
 
 let boss = null, bossActive = false, bossCount = 0;
 
@@ -599,7 +599,7 @@ function startGame() {
 
   score = 0; level = 1;
   lives = DIFF_CFG[selectedDiff].lives;
-  scoreMultiplier = 1; shieldActive = false; doubleShot = false; rapidFire = false;
+  scoreMultiplier = 1; shieldActive = false; shotLevel = 1; rapidFire = false;
   puTimers = {}; scorePopups = []; lastShotTime = 0;
   hintAlpha = 1.0; hintFadeStart = 0;
   bossCount = 0;
@@ -739,7 +739,6 @@ function update(ts, dt) {
     if (puTimers[k] <= 0) {
       delete puTimers[k];
       if (k === 'shield')     shieldActive    = false;
-      if (k === 'doubleShot') doubleShot      = false;
       if (k === 'rapidFire')  rapidFire       = false;
       if (k === 'x2score')    scoreMultiplier = 1;
     }
@@ -751,6 +750,7 @@ function update(ts, dt) {
   // Player bullets move
   playerBullets = playerBullets.filter(function(b) {
     b.y -= BULLET_SPD;
+    if (b.vx) b.x += b.vx;
     return b.y + 8 > 0;
   });
 
@@ -848,6 +848,7 @@ function update(ts, dt) {
           score += bpts;
           spawnScorePopup(boss.x, boss.y, '+' + bpts + ' 🏆');
           boss = null; bossActive = false;
+          shotLevel = 1;
           triggerLevelUp(); return;
         }
       }
@@ -903,11 +904,21 @@ function circleRect(cx, cy, cr, rx, ry, rw, rh) {
   return dx * dx + dy * dy < cr * cr;
 }
 function spawnPlayerBullet() {
-  if (doubleShot) {
-    playerBullets.push({ x: player.x - 10, y: player.y - player.h / 2, dead: false });
-    playerBullets.push({ x: player.x + 10, y: player.y - player.h / 2, dead: false });
-  } else {
-    playerBullets.push({ x: player.x, y: player.y - player.h / 2, dead: false });
+  var bx = player.x, by = player.y - player.h / 2;
+  // Level 1: single center bullet
+  playerBullets.push({ x: bx, y: by, vx: 0, dead: false });
+  if (shotLevel >= 2) {
+    // Level 2: add a second center bullet (tight pair)
+    playerBullets.push({ x: bx - 8, y: by, vx: 0, dead: false });
+    playerBullets.push({ x: bx + 8, y: by, vx: 0, dead: false });
+  }
+  if (shotLevel >= 3) {
+    // Level 3: angled left bullet
+    playerBullets.push({ x: bx - 14, y: by, vx: -1.5, dead: false });
+  }
+  if (shotLevel >= 4) {
+    // Level 4: angled right bullet
+    playerBullets.push({ x: bx + 14, y: by, vx: 1.5, dead: false });
   }
 }
 function hitPlayer() {
@@ -923,7 +934,7 @@ function spawnPowerup(x, y) {
 function applyPowerup(type) {
   var dur = 8000;
   if (type === 'shield')     { shieldActive    = true; puTimers.shield     = dur; }
-  if (type === 'doubleShot') { doubleShot      = true; puTimers.doubleShot = dur; }
+  if (type === 'doubleShot') { shotLevel = Math.min(4, shotLevel + 1); }
   if (type === 'x2score')    { scoreMultiplier = 2;    puTimers.x2score    = dur; }
   if (type === 'rapidFire')  { rapidFire       = true; puTimers.rapidFire  = dur; }
 }
@@ -1091,17 +1102,30 @@ function drawHUD() {
 
 
   var puKeys = Object.keys(puTimers);
-  if (puKeys.length > 0) {
+  // Also show shot level if > 1 (permanent — no timer)
+  var showShotLevel = shotLevel > 1;
+  if (puKeys.length > 0 || showShotLevel) {
     var puFont = Math.max(14, Math.round(CW * 0.026));
     var puBarW = Math.max(20, Math.round(CW * 0.032));
-    // Each slot: emoji + small gap + timer bar + gap between slots
     var slotW  = puFont + 4 + puBarW;
     var slotGap = Math.round(CW * 0.018);
-    var totalPuW = puKeys.length * slotW + (puKeys.length - 1) * slotGap;
-    // Center below the level label (CW/2)
+    // Shot-level slot is emoji only (no bar), so narrower
+    var shotSlotW = puFont + 4;
+    var numTimedSlots = puKeys.length;
+    var totalPuW = numTimedSlots * slotW + (numTimedSlots > 0 ? numTimedSlots - 1 : 0) * slotGap
+                 + (showShotLevel ? (numTimedSlots > 0 ? slotGap : 0) + shotSlotW : 0);
     var px = CW / 2 - totalPuW / 2;
-    // Place just below the HUD bar
     var puY = hudH + Math.round(puFont * 1.1);
+
+    // Draw shot-level indicator first (permanent)
+    if (showShotLevel) {
+      var shotEmoji = ['', '💠', '💠💠', '💠💠💠'][shotLevel - 1] || '💠x' + shotLevel;
+      ctx.fillStyle = '#00e5ff'; ctx.font = 'bold ' + puFont + 'px Arial';
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText(shotEmoji, px, puY);
+      px += shotSlotW + (numTimedSlots > 0 ? slotGap : 0);
+    }
+
     puKeys.forEach(function(k) {
       var col = PU_COLORS[k];
       var frac = Math.max(0, (puTimers[k] || 0) / 8000);
