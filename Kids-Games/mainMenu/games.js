@@ -27,6 +27,15 @@ const GAMES = [
     path:  '../multiplicationGame/index.html',
   },
 
+  {
+    id:    'pongGame',
+    title: 'פינג פונג',
+    desc:  'שחק פינג פונג נגד המחשב — בחר רמת קושי והגע ל-7 נקודות ראשון!',
+    icon:  '🏓',
+    color: 'linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)',
+    path:  '../pongGame/index.html',
+  },
+
   // ── Add more games below ─────────────────────────────
   // {
   //   id:    'myNewGame',
