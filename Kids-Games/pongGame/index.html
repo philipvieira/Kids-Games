@@ -160,6 +160,8 @@
       max-width: 100vw;
     }
     .game-footer { margin-top: 8px; font-size: 0.82rem; color: rgba(255,255,255,0.35); text-align: center; }
+    .footer-mouse { }
+    @media (max-width: 640px) { .footer-mouse { display: none; } }
 
     /* Mobile touch controls */
     .touch-controls { display: none; gap: 10px; margin-top: 10px; align-items: center; }
@@ -334,7 +336,7 @@
 
 <!-- ════════ GAME SCREEN ════════ -->
 <div id="game-screen" class="screen">
-  <div id="overlay">
+  <div id="overlay" onclick="if(paused) togglePause()">
     <div id="overlay-text">3</div>
     <div id="overlay-sub"></div>
   </div>
@@ -354,7 +356,7 @@
     <div class="diff-badge" id="diff-badge">בינוני</div>
   </div>
   <canvas id="game-canvas" width="560" height="420"></canvas>
-  <div class="game-footer">⬆ / ⬇ מקלדת &nbsp;|&nbsp; 🖱️ הזזת העכבר &nbsp;|&nbsp; רווח — השהה</div>
+  <div class="game-footer">⬆ / ⬇ מקלדת <span class="footer-mouse">&nbsp;|&nbsp; 🖱️ הזזת העכבר</span> &nbsp;|&nbsp; רווח — השהה</div>
   <div class="touch-controls">
     <button class="touch-btn"       ontouchstart="touchUp=true"   ontouchend="touchUp=false">▲</button>
     <button class="btn-pause-mobile" onclick="togglePause()">⏸</button>
@@ -723,7 +725,7 @@
     const cfg   = DIFFICULTY[selectedDiff];
     const spd   = cfg.ballSpeed;
     const angle = Math.random() * 0.5 - 0.25;
-    const dir   = _pendingServe ? -1 : 1;
+    const dir   = _pendingServe ? 1 : -1;
     const b     = makeBall(CANVAS_W / 2, GAME_H / 2,
                            dir * spd * Math.cos(angle),
                            spd * Math.sin(angle));
@@ -833,7 +835,7 @@
       paused = true;
       cancelAnimationFrame(animId); animId = null;
       document.getElementById('overlay-text').textContent = '⏸';
-      document.getElementById('overlay-sub').textContent  = 'לחץ רווח להמשיך';
+      document.getElementById('overlay-sub').textContent  = 'לחץ/גע להמשיך';
       document.getElementById('overlay').classList.add('visible');
     }
   }
@@ -867,14 +869,14 @@
     const cpuH   = getCpuH();
     const center = cpuY + cpuH / 2;
 
-    // Choose the most threatening ball (heading toward CPU with highest vx)
+    // Choose the most threatening ball (heading toward CPU on LEFT — most negative vx)
     let targetBall = null;
     let bestVx = 0;
     for (const b of balls) {
-      if (b.vx > bestVx) { bestVx = b.vx; targetBall = b; }
+      if (b.vx < bestVx) { bestVx = b.vx; targetBall = b; }
     }
 
-    if (targetBall && targetBall.vx > 0) {
+    if (targetBall && targetBall.vx < 0) {
       if (cpuTargetY === null) {
         cpuTargetY = (Math.random() < cfg.missChance)
           ? Math.random() * GAME_H
@@ -979,16 +981,16 @@
       if (b.y - b.r <= 0)       { b.y = b.r;          b.vy =  Math.abs(b.vy); }
       if (b.y + b.r >= GAME_H)  { b.y = GAME_H - b.r; b.vy = -Math.abs(b.vy); }
 
-      // ── Player paddle collision ──
-      const PX = 16 + PADDLE_W;
+      // ── Player paddle collision (RIGHT side) ──
+      const PX = CANVAS_W - 16 - PADDLE_W;
       const pH = getPlayerH();
-      if (b.vx < 0 && b.x - b.r <= PX && b.x - b.r >= PX - 12 &&
+      if (b.vx > 0 && b.x + b.r >= PX && b.x + b.r <= PX + 12 &&
           b.y >= playerY - b.r && b.y <= playerY + pH + b.r) {
         if (b.ghostHits > 0) {
           b.ghostHits--;
         } else {
-          b.x  = PX + b.r;
-          b.vx = Math.abs(b.vx);
+          b.x  = PX - b.r;
+          b.vx = -Math.abs(b.vx);
           const relHit = (b.y - (playerY + pH / 2)) / (pH / 2);
           b.vy = relHit * Math.abs(b.vx) * 0.85;
           b.spin = 0;
@@ -997,16 +999,16 @@
         }
       }
 
-      // ── CPU paddle collision ──
-      const CX = CANVAS_W - 16 - PADDLE_W;
+      // ── CPU paddle collision (LEFT side) ──
+      const CX = 16 + PADDLE_W;
       const cH = getCpuH();
-      if (b.vx > 0 && b.x + b.r >= CX && b.x + b.r <= CX + 12 &&
+      if (b.vx < 0 && b.x - b.r <= CX && b.x - b.r >= CX - 12 &&
           b.y >= cpuY - b.r && b.y <= cpuY + cH + b.r) {
         if (b.ghostHits > 0) {
           b.ghostHits--;
         } else {
-          b.x  = CX - b.r;
-          b.vx = -Math.abs(b.vx);
+          b.x  = CX + b.r;
+          b.vx = Math.abs(b.vx);
           const relHit = (b.y - (cpuY + cH / 2)) / (cH / 2);
           b.vy = relHit * Math.abs(b.vx) * 0.85;
           b.spin = 0;
@@ -1049,11 +1051,13 @@
       // ── Scoring ──
       if (gameOver) continue;
       if (b.x + b.r < 0) {
-        ballsToRemove.push(i);
-        scoredLeft = true;
-      } else if (b.x - b.r > CANVAS_W) {
+        // Passed CPU (left) → player scores
         ballsToRemove.push(i);
         scoredRight = true;
+      } else if (b.x - b.r > CANVAS_W) {
+        // Passed player (right) → CPU scores
+        ballsToRemove.push(i);
+        scoredLeft = true;
       }
     }
 
@@ -1156,16 +1160,16 @@
     const playerH = getPlayerH();
     const cpuH    = getCpuH();
 
-    // Player paddle colour — tint if effect active
+    // Player paddle (RIGHT) — tint if effect active
     let playerColor = '#00e5ff';
     if (effects.playerBig   > 0) playerColor = '#4ade80';
     if (effects.playerSmall > 0) playerColor = '#f87171';
-    glowRect(16, playerY, PADDLE_W, playerH, playerColor);
+    glowRect(CANVAS_W - 16 - PADDLE_W, playerY, PADDLE_W, playerH, playerColor);
 
     let cpuColor = '#ff4d4d';
     if (effects.cpuBig   > 0) cpuColor = '#4ade80';
     if (effects.cpuSmall > 0) cpuColor = '#facc15';
-    glowRect(CANVAS_W - 16 - PADDLE_W, cpuY, PADDLE_W, cpuH, cpuColor);
+    glowRect(16, cpuY, PADDLE_W, cpuH, cpuColor);
 
     // ── Balls ──
     for (const b of balls) {
