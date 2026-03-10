@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>מרוץ המכוניות</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- MENU SCREEN -->
+  <div id="menu-screen" class="screen active">
+    <div class="menu-bg"></div>
+    <div class="menu-content">
+      <a href="../mainMenu/index.html" class="btn-back-menu">🏠 חזרה לתפריט הראשי</a>
+      <h1 class="game-title">🏎️ מרוץ המכוניות 🏎️</h1>
+
+      <div class="name-input-box">
+        <label for="driver-name">שם הנהג:</label>
+        <input type="text" id="driver-name" maxlength="16" placeholder="הכנס שם..." autocomplete="off" />
+      </div>
+
+      <!-- Car selection -->
+      <div class="car-select-box">
+        <h2>בחר מכונית:</h2>
+        <div class="car-options" id="car-options">
+          <div class="car-option selected" data-car="sports" onclick="selectCar('sports')">
+            <canvas class="car-preview" id="preview-sports" width="70" height="100"></canvas>
+            <span>ספורט</span>
+          </div>
+          <div class="car-option" data-car="sedan" onclick="selectCar('sedan')">
+            <canvas class="car-preview" id="preview-sedan" width="70" height="100"></canvas>
+            <span>סדאן</span>
+          </div>
+          <div class="car-option" data-car="suv" onclick="selectCar('suv')">
+            <canvas class="car-preview" id="preview-suv" width="70" height="100"></canvas>
+            <span>ג'יפ</span>
+          </div>
+          <div class="car-option" data-car="formula" onclick="selectCar('formula')">
+            <canvas class="car-preview" id="preview-formula" width="70" height="100"></canvas>
+            <span>פורמולה</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="instructions-box">
+        <h2>איך משחקים?</h2>
+        <p>👆 <strong>לחץ שמאל</strong> / ← לנוע שמאלה &nbsp;|&nbsp; <strong>לחץ ימין</strong> / → לנוע ימינה</p>
+        <p>⚡ הימנע ממכוניות! &nbsp;🏁 הגע לקו הסיום לפני שהזמן נגמר! &nbsp;❤️ 3 חיים</p>
+        <h3 class="powerup-title">פריטי כוח:</h3>
+        <div class="powerup-legend">
+          <div class="powerup-legend-item">
+            <span class="pu-icon">⚡</span>
+            <span><strong>מהירות</strong> — נסיעה מהירה יותר לזמן קצר</span>
+          </div>
+          <div class="powerup-legend-item">
+            <span class="pu-icon">🛡️</span>
+            <span><strong>חוסן</strong> — חסין לפגיעות לזמן קצר</span>
+          </div>
+          <div class="powerup-legend-item">
+            <span class="pu-icon pu-x2">×2</span>
+            <span><strong>ניקוד כפול</strong> — צובר ניקוד פי 2 מהר יותר לזמן קצר</span>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn-start" onclick="startGame()">🚦 התחל משחק!</button>
+
+      <div id="highscore-box" class="highscore-box">
+        <h3>🏆 טבלת שיאים</h3>
+        <ol id="highscore-list"></ol>
+      </div>
+    </div>
+  </div>
+
+  <!-- GAME SCREEN -->
+  <div id="game-screen" class="screen">
+    <div class="hud" id="hud">
+      <!-- Single row: left stats | center progress | right stats -->
+      <div class="hud-row">
+        <div class="hud-side hud-left">
+          <div class="hud-item hud-timer">⏱️ <span id="timer">60</span></div>
+          <div class="hud-item hud-score">⭐ <span id="score">0</span></div>
+        </div>
+        <div class="hud-middle">
+          <div class="hud-level-badge">שלב <span id="level-display">1</span></div>
+          <div class="progress-wrap">
+            <div class="progress-bar" id="progress-bar"></div>
+            <span class="progress-flag">🏁</span>
+          </div>
+          <div class="powerup-slots" id="powerup-slots"></div>
+        </div>
+        <div class="hud-side hud-right">
+          <div class="hud-item" id="lives-display">❤️❤️❤️</div>
+          <button class="pause-btn" id="pause-btn" onclick="togglePause()">⏸</button>
+        </div>
+      </div>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+    <div id="tap-left"  class="tap-zone tap-left"></div>
+    <div id="tap-right" class="tap-zone tap-right"></div>
+    <div class="tap-hint tap-hint-left">◀ שמאל</div>
+    <div class="tap-hint tap-hint-right">ימין ▶</div>
+  </div>
+
+  <!-- PAUSE POPUP -->
+  <div id="pause-screen" class="screen pause-overlay">
+    <div class="pause-content">
+      <h2>⏸ משחק מושהה</h2>
+      <button class="btn-start" onclick="togglePause()">▶️ המשך משחק</button>
+      <button class="btn-menu"  onclick="goMenu()">🏠 תפריט ראשי</button>
+    </div>
+  </div>
+
+  <!-- LEVEL COMPLETE SCREEN -->
+  <div id="win-screen" class="screen">
+    <div class="celebration-bg" id="celebration-bg"></div>
+    <div class="win-content">
+      <h1 class="win-title">🏆 כל הכבוד! 🏆</h1>
+      <div class="crowd" id="crowd"></div>
+      <p class="win-msg" id="win-msg"></p>
+      <p class="win-score">ניקוד: <span id="final-score">0</span></p>
+      <div id="win-buttons" class="win-buttons">
+        <button class="btn-start" onclick="nextLevel()">➡️ שלב הבא</button>
+        <button class="btn-menu"  onclick="goMenu()">🏠 תפריט</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GAME OVER SCREEN -->
+  <div id="gameover-screen" class="screen">
+    <div class="gameover-content">
+      <h1 class="gameover-title" id="gameover-title">💥 התנגשת!</h1>
+      <p class="gameover-msg" id="gameover-msg"></p>
+      <p class="win-score">ניקוד: <span id="gameover-score">0</span></p>
+      <div id="gameover-buttons" class="win-buttons">
+        <button class="btn-start" onclick="restartLevel()">🔄 נסה שוב</button>
+        <button class="btn-menu"  onclick="goMenu()">🏠 תפריט</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
