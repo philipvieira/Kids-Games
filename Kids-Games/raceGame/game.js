@@ -60,7 +60,9 @@ const TRAFFIC_VARIANTS = [
 function resize() {
   W = canvas.width  = window.innerWidth;
   H = canvas.height = window.innerHeight;
-  const roadW = Math.min(W * 0.70, 520);   // wider road
+  // On narrow mobile screens use a wider road fraction so the lanes remain usable
+  const roadFrac = W < 480 ? 0.92 : W < 680 ? 0.80 : 0.70;
+  const roadW = Math.min(W * roadFrac, 520);
   roadLeft  = (W - roadW) / 2;
   roadRight = roadLeft + roadW;
   laneW     = roadW / LANES;
@@ -68,7 +70,9 @@ function resize() {
     player.x = clamp(player.x, roadLeft + laneW * 0.5, roadRight - laneW * 0.5);
   }
 }
-window.addEventListener('resize', resize);
+window.addEventListener('resize', () => { resize(); });
+// Re-resize after orientation change settles (iOS fires resize before layout is final)
+window.addEventListener('orientationchange', () => { setTimeout(resize, 200); });
 
 // ─── Helpers ──────────────────────────────────────────────────
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
@@ -89,6 +93,7 @@ function goMenu() {
   gamePaused   = false;
   currentLevel = 0;
   lives        = 3;
+  document.body.style.overflow = '';
   showScreen('menu-screen');
   renderHighScores();
   renderCarPreviews();
@@ -144,6 +149,7 @@ function startGame() {
   currentLevel = 0;
   lives        = 3;
   startMusic();
+  document.body.style.overflow = 'hidden';
   initLevel(0);
   showScreen('game-screen');
 }
@@ -324,6 +330,53 @@ document.addEventListener('keyup', e => {
   if (e.key === 'ArrowRight') moveRight = false;
 });
 
+// ─── Swipe-to-steer (touch gesture on the canvas / game screen) ──────────────
+// Holding a horizontal swipe also counts as continuous left/right movement,
+// providing an alternative to the tap-zone buttons on mobile.
+let swipeTouchId   = null;
+let swipeStartX    = 0;
+const SWIPE_THRESH = 20; // px of horizontal drag before direction locks in
+
+const gameScreen = document.getElementById('game-screen');
+gameScreen.addEventListener('touchstart', e => {
+  // Only handle single-finger swipe that isn't on a button
+  const t = e.changedTouches[0];
+  swipeTouchId = t.identifier;
+  swipeStartX  = t.clientX;
+}, { passive: true });
+
+gameScreen.addEventListener('touchmove', e => {
+  if (!gameRunning || gamePaused) return;
+  for (let i = 0; i < e.changedTouches.length; i++) {
+    const t = e.changedTouches[i];
+    if (t.identifier !== swipeTouchId) continue;
+    const dx = t.clientX - swipeStartX;
+    if (dx > SWIPE_THRESH) {
+      // RTL layout: swipe right → move right on road
+      moveLeft  = false;
+      moveRight = true;
+    } else if (dx < -SWIPE_THRESH) {
+      moveRight = false;
+      moveLeft  = true;
+    }
+  }
+  e.preventDefault(); // prevent scroll/zoom while swiping
+}, { passive: false });
+
+gameScreen.addEventListener('touchend', e => {
+  for (let i = 0; i < e.changedTouches.length; i++) {
+    if (e.changedTouches[i].identifier === swipeTouchId) {
+      moveLeft = moveRight = false;
+      swipeTouchId = null;
+    }
+  }
+}, { passive: true });
+
+gameScreen.addEventListener('touchcancel', () => {
+  moveLeft = moveRight = false;
+  swipeTouchId = null;
+}, { passive: true });
+
 // ─── Main Loop ────────────────────────────────────────────────
 function loop(ts) {
   if (!gameRunning || gamePaused) { loopId = null; return; }
@@ -337,8 +390,8 @@ function loop(ts) {
 function update(ts) {
   const speed = powerupsActive.speed ? player.speed * 1.7 : player.speed;
 
-  // Horizontal movement
-  const hSpeed = laneW * 0.07;
+  // Horizontal movement — scale speed to lane width so it feels consistent on all screen sizes
+  const hSpeed = laneW * (W < 480 ? 0.09 : 0.07);
   if (moveLeft)  player.x = Math.max(roadLeft  + player.w / 2, player.x - hSpeed);
   if (moveRight) player.x = Math.min(roadRight - player.w / 2, player.x + hSpeed);
 

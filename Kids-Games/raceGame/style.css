@@ -1,10 +1,23 @@
 /* ─── Reset & Base ─── */
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: 'Segoe UI', Arial, sans-serif; overflow: hidden; background: #1a1a2e; }
+body {
+  font-family: 'Segoe UI', Arial, sans-serif;
+  overflow: hidden; background: #1a1a2e;
+  /* Prevent double-tap zoom and text selection during gameplay */
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  user-select: none;
+  touch-action: pan-y; /* allow menu scroll, overridden on game screen */
+}
 
 /* ─── Screens ─── */
 .screen { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; }
 .screen.active { display: flex; }
+
+/* Game screen: block all touch scrolling/zooming so swipes control the car */
+#game-screen {
+  touch-action: none;
+}
 
 /* ─── Menu ─── */
 #menu-screen { background: linear-gradient(160deg, #0f0c29, #302b63, #24243e); overflow-y: auto; align-items: flex-start; padding: 12px 0; }
@@ -147,7 +160,7 @@ body { font-family: 'Segoe UI', Arial, sans-serif; overflow: hidden; background:
 
 /* Level progress bar in HUD */
 .progress-wrap {
-  position: relative; width: 600px;
+  position: relative; width: min(600px, 42vw);
   height: 16px; background: rgba(255,255,255,.15);
   border-radius: 8px; overflow: visible;
 }
@@ -190,18 +203,27 @@ body { font-family: 'Segoe UI', Arial, sans-serif; overflow: hidden; background:
 /* ─── Mobile HUD (portrait phones ≤ 540px) ─── */
 @media (max-width: 540px) {
   .hud { padding: 4px 6px; }
-  .hud-row { gap: 64px; }
-  .hud-timer  { font-size: 1.3rem; }
-  .hud-score  { font-size: 1.3rem; }
-  #lives-display { font-size: 1.3rem; }
-  .hud-level-badge { font-size: 1rem; }
-  .hud-level-badge span { font-size: 1.2rem; }
-  .progress-wrap { width: 350px; height: 12px; }
-  .progress-flag { font-size: 1.4rem; right: -20px; }
-  .powerup-slot  { padding: 2px 5px; }
-  .powerup-slot-icon { font-size: 0.9rem; }
-  .x2-badge { font-size: 0.75rem; padding: 1px 4px; }
-  .powerup-slot-bar-wrap { width: 36px; }
+  .hud-row { gap: 10px; }
+  .hud-timer  { font-size: 1.1rem; }
+  .hud-score  { font-size: 1.1rem; }
+  #lives-display { font-size: 1.1rem; }
+  .hud-level-badge { font-size: 0.85rem; padding: 1px 8px; }
+  .hud-level-badge span { font-size: 1rem; }
+  .progress-wrap { width: min(200px, 34vw); height: 10px; }
+  .progress-flag { font-size: 1.1rem; right: -16px; top: -4px; }
+  .powerup-slot  { padding: 2px 4px; }
+  .powerup-slot-icon { font-size: 0.85rem; }
+  .x2-badge { font-size: 0.7rem; padding: 1px 3px; }
+  .powerup-slot-bar-wrap { width: 28px; }
+  .pause-btn { font-size: 1.1rem; padding: 2px 8px; }
+}
+
+/* ─── Very small phones (≤ 360px) ─── */
+@media (max-width: 360px) {
+  .hud-row { gap: 6px; }
+  .hud-timer, .hud-score, #lives-display { font-size: 0.95rem; }
+  .progress-wrap { width: 26vw; height: 9px; }
+  .hud-level-badge { font-size: 0.75rem; padding: 1px 5px; }
 }
 
 /* ─── Large desktop (≥ 900px) ─── */
@@ -213,7 +235,7 @@ body { font-family: 'Segoe UI', Arial, sans-serif; overflow: hidden; background:
   #lives-display { font-size: 2.2rem; }
   .hud-level-badge { font-size: 1.6rem; }
   .hud-level-badge span { font-size: 2rem; }
-  .progress-wrap { width: 700px; height: 18px; }
+  .progress-wrap { width: min(700px, 42vw); height: 18px; }
   .progress-flag { font-size: 2rem; right: -28px; }
   .powerup-slot-icon { font-size: 1.3rem; }
   .x2-badge { font-size: 1.1rem; padding: 2px 7px; }
@@ -248,11 +270,36 @@ body { font-family: 'Segoe UI', Arial, sans-serif; overflow: hidden; background:
 
 /* ─── Tap Zones ─── */
 .tap-zone {
-  position: fixed; top: 0; bottom: 0; width: 50%; z-index: 10;
+  position: fixed; bottom: 0; height: 38%; width: 46%; z-index: 10;
   cursor: pointer; -webkit-tap-highlight-color: transparent;
+  touch-action: none;
 }
 .tap-left  { left: 0; }
 .tap-right { right: 0; }
+
+/* Mobile: show visible arrow buttons in bottom corners */
+@media (max-width: 600px) {
+  .tap-zone {
+    height: 34%; width: 44%;
+    display: flex; align-items: flex-end; justify-content: center;
+    padding-bottom: 18px;
+  }
+  .tap-zone::after {
+    content: attr(data-label);
+    font-size: 2.2rem; color: rgba(255,255,255,.55);
+    background: rgba(255,255,255,.08);
+    border: 2px solid rgba(255,255,255,.18);
+    border-radius: 18px;
+    padding: 10px 26px;
+    pointer-events: none;
+    transition: background .1s;
+  }
+  .tap-zone:active::after {
+    background: rgba(255,255,255,.22);
+    color: rgba(255,255,255,.9);
+  }
+}
+
 .tap-hint {
   position: fixed; bottom: 14px; z-index: 15;
   color: rgba(255,255,255,.45); font-size: 0.9rem; font-weight: bold;
@@ -260,6 +307,11 @@ body { font-family: 'Segoe UI', Arial, sans-serif; overflow: hidden; background:
 }
 .tap-hint-left  { left: 16px; }
 .tap-hint-right { right: 16px; }
+
+/* Hide tap hints on mobile — the button labels are enough */
+@media (max-width: 600px) {
+  .tap-hint { display: none; }
+}
 
 /* ─── Win Screen ─── */
 #win-screen { background: rgba(0,0,0,.85); flex-direction: column; z-index: 50; }
