@@ -1090,20 +1090,30 @@ function drawHUD() {
   ctx.fillText('❤ x' + lives, 10, midY);
 
 
-  var px = 10;
-  var puFont = Math.max(14, Math.round(CW * 0.026));
-  var puBarW = Math.max(20, Math.round(CW * 0.032));
-  var puStep = puFont + puBarW + 6;
-  Object.keys(puTimers).forEach(function(k) {
-    var col = PU_COLORS[k];
-    var frac = Math.max(0, (puTimers[k] || 0) / 8000);
-    ctx.fillStyle = col; ctx.font = 'bold ' + puFont + 'px Arial';
-    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    ctx.fillText(PU_EMOJI[k], px, hudH + puFont + 4);
-    ctx.strokeStyle = col; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(px, hudH + puFont * 2 + 8); ctx.lineTo(px + puBarW * frac, hudH + puFont * 2 + 8); ctx.stroke();
-    px += puStep;
-  });
+  var puKeys = Object.keys(puTimers);
+  if (puKeys.length > 0) {
+    var puFont = Math.max(14, Math.round(CW * 0.026));
+    var puBarW = Math.max(20, Math.round(CW * 0.032));
+    // Each slot: emoji + small gap + timer bar + gap between slots
+    var slotW  = puFont + 4 + puBarW;
+    var slotGap = Math.round(CW * 0.018);
+    var totalPuW = puKeys.length * slotW + (puKeys.length - 1) * slotGap;
+    // Center below the level label (CW/2)
+    var px = CW / 2 - totalPuW / 2;
+    // Place just below the HUD bar
+    var puY = hudH + Math.round(puFont * 1.1);
+    puKeys.forEach(function(k) {
+      var col = PU_COLORS[k];
+      var frac = Math.max(0, (puTimers[k] || 0) / 8000);
+      ctx.fillStyle = col; ctx.font = 'bold ' + puFont + 'px Arial';
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText(PU_EMOJI[k], px, puY);
+      ctx.strokeStyle = col; ctx.lineWidth = 3;
+      var barX = px + puFont + 4;
+      ctx.beginPath(); ctx.moveTo(barX, puY); ctx.lineTo(barX + puBarW * frac, puY); ctx.stroke();
+      px += slotW + slotGap;
+    });
+  }
 
   if (hs > 0) {
     var hsFont = Math.max(11, Math.round(CW * 0.018));
