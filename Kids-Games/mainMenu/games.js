@@ -36,6 +36,15 @@ const GAMES = [
     path:  '../pongGame/index.html',
   },
 
+  {
+    id:    'spaceGame',
+    title: 'מגני החלל',
+    desc:  'הגן על כדור הארץ מפני פלישת החייזרים — 3 רמות קושי, בוסים, ופריטי כוח!',
+    icon:  '🚀',
+    color: 'linear-gradient(135deg, #05070f 0%, #0d1b2a 50%, #1a0533 100%)',
+    path:  '../spaceGame/index.html',
+  },
+
   // ── Add more games below ─────────────────────────────
   // {
   //   id:    'myNewGame',
