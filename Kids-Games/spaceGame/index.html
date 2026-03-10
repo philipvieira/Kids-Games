@@ -58,6 +58,14 @@
       text-align: center;
       box-shadow: 0 24px 60px rgba(0,0,0,0.7), 0 0 40px rgba(0,229,255,0.08);
     }
+    /* On desktop — much larger menu */
+    @media (hover: hover) and (pointer: fine) {
+      .menu-box {
+        max-width: 860px;
+        padding: 56px 64px;
+        border-radius: 40px;
+      }
+    }
     .btn-back-main {
       display: block; width: 100%; padding: 12px; margin-bottom: 24px;
       background: rgba(255,255,255,0.08); color: rgba(200,220,255,0.8);
@@ -88,6 +96,27 @@
     }
     .name-input::placeholder { color: rgba(255,255,255,0.25); }
     .name-input:focus { border-color: var(--cyan); }
+
+    /* Desktop — scale up text/buttons */
+    @media (hover: hover) and (pointer: fine) {
+      .game-title    { font-size: 4.8rem; margin-bottom: 10px; }
+      .game-tagline  { font-size: 1.5rem; margin-bottom: 36px; }
+      .btn-back-main { font-size: 1.5rem; padding: 18px; margin-bottom: 32px; border-radius: 18px; }
+      .name-label    { font-size: 1.3rem; margin-bottom: 10px; }
+      .name-input    { font-size: 1.5rem; padding: 16px 22px; border-radius: 18px; }
+      .hs-chip       { font-size: 1.2rem; padding: 8px 20px; }
+      .section-label { font-size: 1.4rem; margin-bottom: 14px; }
+      .diff-row      { gap: 16px; margin-bottom: 36px; }
+      .diff-btn      { font-size: 1.4rem; padding: 22px 10px; border-radius: 22px; }
+      .btn-primary   { font-size: 1.8rem; padding: 22px; border-radius: 22px; margin-bottom: 16px; }
+      .btn-secondary { font-size: 1.4rem; padding: 18px; border-radius: 18px; margin-bottom: 14px; }
+      .sound-label   { font-size: 1.3rem; }
+      .sound-toggle  { font-size: 1.3rem; padding: 12px 28px; }
+      .controls-hint { padding: 18px 22px; margin-bottom: 28px; border-radius: 18px; }
+      .controls-hint-title { font-size: 1.2rem; margin-bottom: 12px; }
+      .controls-hint-row   { font-size: 1.2rem; margin-bottom: 8px; }
+      .key { font-size: 1.1rem; padding: 4px 14px; border-radius: 8px; }
+    }
 
     /* Controls hint box (desktop only) */
     .controls-hint {
@@ -209,16 +238,8 @@
       color: rgba(255,255,255,0.8); border-radius: 16px;
     }
 
-    /* Portrait warning */
-    #portrait-warn {
-      display: none; position: fixed; inset: 0; z-index: 100;
-      background: var(--bg);
-      flex-direction: column; align-items: center; justify-content: center;
-      text-align: center; padding: 30px; gap: 16px;
-    }
-    #portrait-warn.show { display: flex; }
-    .pw-emoji { font-size: 4rem; }
-    .pw-text  { font-size: 1.2rem; color: rgba(255,255,255,0.8); line-height: 1.6; }
+    /* Portrait warning — hidden, game works in any orientation */
+    #portrait-warn { display: none !important; }
 
     /* Overlay (pause / level-up / game-over) */
     #game-overlay {
@@ -393,17 +414,8 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
 })();
 
 // ═══════════════════════════════════════════════════════════════
-//  PORTRAIT WARNING
+//  PORTRAIT WARNING — removed, game works in any orientation
 // ═══════════════════════════════════════════════════════════════
-function checkPortrait() {
-  const warn = document.getElementById('portrait-warn');
-  const mob = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || window.innerWidth < 700;
-  if (mob && window.innerHeight > window.innerWidth) warn.classList.add('show');
-  else warn.classList.remove('show');
-}
-window.addEventListener('resize', checkPortrait);
-window.addEventListener('orientationchange', checkPortrait);
-checkPortrait();
 
 // ═══════════════════════════════════════════════════════════════
 //  SOUND
@@ -548,6 +560,30 @@ let keysDown = {}, mobileLeft = false, mobileRight = false;
 let overlayMode = 'pause';
 let drawNow = 0;
 
+// Game-canvas stars (separate from the background HTML stars)
+var gameStars = [];
+function initGameStars() {
+  gameStars = [];
+  var w = CW || window.innerWidth;
+  var h = CH || window.innerHeight;
+  for (var i = 0; i < 120; i++) {
+    gameStars.push({
+      x: Math.random() * w,
+      y: Math.random() * h,
+      r: Math.random() * 1.4 + 0.2,
+      spd: Math.random() * 0.4 + 0.06,
+      alpha: Math.random() * 0.7 + 0.15,
+    });
+  }
+}
+initGameStars();
+
+// In-game controls hint — shown for first 6 seconds, then fades
+var hintAlpha     = 1.0;
+var hintFadeStart = 0;
+var HINT_SHOW_MS  = 5000;
+var HINT_FADE_MS  = 1500;
+
 // ═══════════════════════════════════════════════════════════════
 //  INPUT
 // ═══════════════════════════════════════════════════════════════
@@ -594,8 +630,10 @@ function startGame() {
   lives = DIFF_CFG[selectedDiff].lives;
   scoreMultiplier = 1; shieldActive = false; doubleShot = false; rapidFire = false;
   puTimers = {}; scorePopups = []; lastShotTime = 0;
+  hintAlpha = 1.0; hintFadeStart = 0;
 
   initLevel();
+  initGameStars();
   gameState = 'playing';
   playBgMusic();
   lastTime = performance.now();
@@ -917,6 +955,7 @@ function triggerLevelUp() {
 }
 function nextLevel() {
   level++;
+  hintFadeStart = 0; hintAlpha = 1.0;
   document.getElementById('game-overlay').classList.remove('visible');
   initLevel();
   gameState = 'playing';
@@ -942,6 +981,20 @@ function triggerGameOver() {
 function draw(ts) {
   drawNow = ts || performance.now();
   ctx.clearRect(0, 0, CW, CH);
+
+  // ── Game-canvas scrolling stars ──
+  ctx.save();
+  for (var si = 0; si < gameStars.length; si++) {
+    var s = gameStars[si];
+    s.y += s.spd;
+    if (s.y > CH) { s.y = 0; s.x = Math.random() * CW; }
+    ctx.globalAlpha = s.alpha;
+    ctx.fillStyle   = '#fff';
+    ctx.beginPath(); ctx.arc(s.x % CW, s.y, s.r, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+
   drawHUD();
 
   enemies.forEach(function(e) { if (!e.dead) drawEnemy(e); });
@@ -975,6 +1028,9 @@ function draw(ts) {
 
   drawPlayer();
 
+  // ── In-game controls hint (fades after first few seconds) ──
+  drawControlsHint(ts);
+
   // Score popups
   scorePopups.forEach(function(p) {
     ctx.globalAlpha = p.alpha; ctx.fillStyle = '#fbbf24';
@@ -982,6 +1038,49 @@ function draw(ts) {
     ctx.fillText(p.text, p.x, p.y);
     ctx.globalAlpha = 1;
   });
+}
+
+function drawControlsHint(ts) {
+  // Start fade countdown on first call
+  if (hintFadeStart === 0) hintFadeStart = ts;
+  var elapsed = ts - hintFadeStart;
+  if (elapsed < HINT_SHOW_MS) {
+    hintAlpha = 1.0;
+  } else {
+    hintAlpha = 1.0 - Math.min(1, (elapsed - HINT_SHOW_MS) / HINT_FADE_MS);
+  }
+  if (hintAlpha <= 0) return;
+
+  var mob = isTouchDevice() || window.innerWidth < 700;
+  var lines = mob
+    ? ['◀ ▶  לתנועה', '⏸  הפסקה / המשך']
+    : ['← → / A D   לתנועה', 'P / Esc   הפסקה / המשך', '🔫 יורה אוטומטית'];
+
+  var fontSize = Math.max(13, Math.round(CW * 0.028));
+  var lineH    = fontSize + 8;
+  var padX     = 18, padY = 12;
+  var boxW     = Math.round(CW * 0.36);
+  var boxH     = lines.length * lineH + padY * 2;
+  var boxX     = Math.round((CW - boxW) / 2);
+  var boxY     = Math.round(CH * 0.42);
+
+  ctx.save();
+  ctx.globalAlpha = hintAlpha * 0.82;
+  ctx.fillStyle   = 'rgba(5,7,15,0.78)';
+  ctx.beginPath(); ctx.roundRect(boxX, boxY, boxW, boxH, 14); ctx.fill();
+  ctx.strokeStyle = 'rgba(0,229,255,0.35)';
+  ctx.lineWidth   = 1.5;
+  ctx.beginPath(); ctx.roundRect(boxX, boxY, boxW, boxH, 14); ctx.stroke();
+
+  ctx.globalAlpha  = hintAlpha;
+  ctx.font         = 'bold ' + fontSize + 'px Arial';
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'middle';
+  for (var i = 0; i < lines.length; i++) {
+    ctx.fillStyle = i === lines.length - 1 ? 'rgba(0,229,255,0.9)' : '#fff';
+    ctx.fillText(lines[i], CW / 2, boxY + padY + i * lineH + lineH / 2);
+  }
+  ctx.restore();
 }
 
 function drawHUD() {
