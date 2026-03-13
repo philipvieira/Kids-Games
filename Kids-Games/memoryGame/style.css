@@ -28,9 +28,9 @@ html, body {
 .screen.active { display: flex; }
 
 /* ── THEME BACKGROUNDS ─────────────────────────── */
-body.theme-animals { background: #5bbfbf url('animals-bg.png') center center / cover no-repeat; }
-body.theme-space   { background: #2a1a5e url('space-bg.png') center center / cover no-repeat; }
-body.theme-emojis  { background: #fff url('emoji-bg.png') center center / cover no-repeat; }
+body.theme-animals { background: #5bbfbf url('assets/animals-bg.png') center center / cover no-repeat; }
+body.theme-space   { background: #2a1a5e url('assets/space-bg.png') center center / cover no-repeat; }
+body.theme-emojis  { background: #fff url('assets/emoji-bg.png') center center / cover no-repeat; }
 
 /* ══════════════════════════════════════════════════
    MAIN MENU — matches spaceGame style
@@ -275,7 +275,7 @@ body.theme-emojis  { background: #fff url('emoji-bg.png') center center / cover 
 
 /* Back face — card-bg image fills the back, ❓ on top */
 .card-back {
-  background: #1a0a3e url('card-bg.png') center center / cover no-repeat;
+  background: #1a0a3e url('assets/card-bg.png') center center / cover no-repeat;
   box-shadow: 0 3px 10px rgba(0,0,0,0.35);
 }
 .card-back::after {
@@ -291,9 +291,9 @@ body.theme-emojis  { background: #fff url('emoji-bg.png') center center / cover 
 }
 
 /* Theme card backs — keep image but tint the overlay for each theme */
-body.theme-animals .card-back { background: #2d7a3a url('card-bg.png') center center / cover no-repeat; }
-body.theme-space   .card-back { background: #03045e url('card-bg.png') center center / cover no-repeat; }
-body.theme-emojis  .card-back { background: #b5179e url('card-bg.png') center center / cover no-repeat; }
+body.theme-animals .card-back { background: #2d7a3a url('assets/card-bg.png') center center / cover no-repeat; }
+body.theme-space   .card-back { background: #03045e url('assets/card-bg.png') center center / cover no-repeat; }
+body.theme-emojis  .card-back { background: #b5179e url('assets/card-bg.png') center center / cover no-repeat; }
 
 /* Matched card glow */
 .card.matched .card-front {

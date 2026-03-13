@@ -223,7 +223,7 @@ const SoundFX = (() => {
 })();
 
 const BgMusic = (() => {
-  const audio = new Audio('ColorGame.mp3');
+  const audio = new Audio('assets/ColorGame.mp3');
   audio.loop   = true;
   audio.volume = 0.45;
   return {

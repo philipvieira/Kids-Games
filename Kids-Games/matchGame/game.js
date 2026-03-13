@@ -200,7 +200,7 @@ const SoundFX = (() => {
 })();
 
 const BgMusic = (() => {
-  const aud = new Audio('matchingmusic.mp3');
+  const aud = new Audio('assets/matchingmusic.mp3');
   aud.loop   = true;
   aud.volume = 0.4;
   return {

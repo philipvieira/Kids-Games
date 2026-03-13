@@ -239,7 +239,7 @@ const BgMusic = (() => {
 
   function getAudio() {
     if (!audio) {
-      audio = new window.Audio('MemoryMusic.mp3');
+      audio = new window.Audio('assets/MemoryMusic.mp3');
       audio.loop   = true;
       audio.volume = 0.35;
     }

@@ -1474,7 +1474,7 @@ function _getAudioCtx() {
 function _loadMusic() {
   if (musicLoaded) return;
   musicLoaded = true;
-  fetch('8bit race.mp4')
+  fetch('assets/8bit race.mp4')
     .then(r => r.arrayBuffer())
     .then(buf => _getAudioCtx().decodeAudioData(buf))
     .then(decoded => {
