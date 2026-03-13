@@ -306,8 +306,8 @@ var perfectsThisGame = 0;
 // ════════════════════════════════════════════════════════════
 
 const BLOCK_IMG_COUNT = 9;
-var blockImgs    = [];   // array of Image objects
-var blockImgsRdy = 0;    // how many have loaded
+var blockImgs    = [];
+var blockImgsRdy = 0;
 
 (function loadBlockImgs() {
   for (var i = 1; i <= BLOCK_IMG_COUNT; i++) {
@@ -317,6 +317,16 @@ var blockImgsRdy = 0;    // how many have loaded
     blockImgs.push(img);
   }
 })();
+
+// ── Crane images ──────────────────────────────────────────
+var craneBarImg  = new Image();
+var craneRopeImg = new Image();
+var craneBarReady  = false;
+var craneRopeReady = false;
+craneBarImg.onload  = function() { craneBarReady  = true; };
+craneRopeImg.onload = function() { craneRopeReady = true; };
+craneBarImg.src  = 'assets/cranebar.png';
+craneRopeImg.src = 'assets/cranerope.png';
 
 function randomSprite() {
   // Returns an index 0-8
@@ -337,13 +347,6 @@ function nextColor() {
 // ════════════════════════════════════════════════════════════
 // 7. CRANE / PENDULUM PHYSICS
 // ════════════════════════════════════════════════════════════
-
-// Position of the hanging block centre (canvas coords) while swinging
-function blockCentreCanvas() {
-  var bx = GS.pivotX + Math.sin(GS.angle) * GS.ropeLen;
-  var by = GS.pivotY + Math.cos(GS.angle) * GS.ropeLen;
-  return { x: bx, y: by };
-}
 
 // Initialise a new block at the crane
 function initBlock() {
@@ -385,6 +388,8 @@ function handleDrop() {
   GS.dropX  = pos.x;
   GS.dropY  = (GS.canvasH - pos.y) + GS.cameraY;
   GS.dropVY = 0;
+  // Snap rope to straight-down so cranerope image looks idle while block falls
+  GS.angle  = 0;
 }
 
 // ── Drop physics ──────────────────────────────────────────
@@ -614,12 +619,13 @@ function resizeCanvas() {
     GS.baseSz = Math.max(MIN_BLOCK_PX, Math.round(GS.gameW * BLOCK_SIZE_FRAC));
   }
 
-  // Crane pivot: centre of game column, a few px below top edge
-  GS.pivotX = GS.gameX + Math.round(GS.gameW / 2);
-  GS.pivotY = 8;
+  // Crane pivot: horizontally centred, vertically at mid-bar of cranebar image
+  GS.pivotX   = GS.gameX + Math.round(GS.gameW / 2);
+  var barH    = Math.max(24, Math.round(GS.canvasH * 0.055));
+  GS.pivotY   = Math.round(barH / 2);
 
-  // Rope length: hangs block in top 30% of canvas, with clearance
-  GS.ropeLen = Math.round(GS.canvasH * 0.26);
+  // Rope length: hangs block comfortably below the bar
+  GS.ropeLen  = Math.round(GS.canvasH * 0.26);
 }
 
 // ── Camera ────────────────────────────────────────────────
@@ -768,48 +774,70 @@ function drawLetterbox() {
   ctx.fillRect(GS.gameX + GS.gameW, 0, GS.gameX, GS.canvasH);
 }
 
-// ── Crane arm + rope (always drawn) ───────────────────────
+// ── Crane bar + rope (image-based) ───────────────────────
+//
+// cranebar.png  — horizontal beam, drawn at full game width, fixed at top.
+// cranerope.png — rope+hook, origin at TOP-CENTRE of the image.
+//                 Rotated around GS.pivotX / GS.pivotY.
+//
+// Rope image natural aspect: tall & narrow (~1:5 w:h).
+// We size it so its width = blockSz * 0.55 and height = ropeLen + blockSz * 0.5
+// (the hook sits at the very bottom of the image).
 function drawCraneArm() {
-  ctx.save();
-  // Horizontal crane arm
-  ctx.strokeStyle = '#8b6914';
-  ctx.lineWidth   = 6;
-  ctx.lineCap     = 'round';
-  ctx.beginPath();
-  ctx.moveTo(GS.gameX + GS.gameW * 0.08, GS.pivotY + 2);
-  ctx.lineTo(GS.gameX + GS.gameW * 0.92, GS.pivotY + 2);
-  ctx.stroke();
+  var barH = Math.max(24, Math.round(GS.canvasH * 0.055)); // height of bar image
 
-  // Pivot circle
-  ctx.fillStyle = '#f59e0b';
-  ctx.beginPath();
-  ctx.arc(GS.pivotX, GS.pivotY + 2, 7, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = '#92400e';
-  ctx.lineWidth   = 2;
-  ctx.stroke();
-
-  if (!GS.dropping) {
-    // Rope to hanging block
-    var pos = blockCentreCanvas();
-    ctx.strokeStyle = '#d97706';
-    ctx.lineWidth   = 3;
-    ctx.lineCap     = 'round';
-    ctx.beginPath();
-    ctx.moveTo(GS.pivotX, GS.pivotY + 2);
-    ctx.lineTo(pos.x, pos.y);
-    ctx.stroke();
+  // ── 1. Crane bar (fixed, full game width) ─────────────
+  if (craneBarReady) {
+    ctx.drawImage(craneBarImg, GS.gameX, 0, GS.gameW, barH);
   } else {
-    // Rope hangs straight down, stationary after release
+    // Fallback bar
+    ctx.fillStyle = '#f59e0b';
+    ctx.fillRect(GS.gameX, 0, GS.gameW, barH);
+  }
+
+  // Pivot sits at the vertical centre of the bar
+  var pivotCanvasY = barH / 2;
+
+  // ── 2. Rope (rotates around pivot) ────────────────────
+  var ropeW = Math.round(GS.blockSz * 0.55);
+  // Total rope+hook image height covers from pivot to block-centre attachment point
+  var ropeH = GS.ropeLen + Math.round(GS.blockSz * 0.55);
+
+  ctx.save();
+  ctx.translate(GS.pivotX, pivotCanvasY);
+  ctx.rotate(GS.angle);
+
+  if (craneRopeReady) {
+    // Image origin = top-centre; draw centred horizontally, starting from pivot
+    ctx.drawImage(craneRopeImg, -ropeW / 2, 0, ropeW, ropeH);
+  } else {
+    // Fallback rope line + hook circle
     ctx.strokeStyle = '#d97706';
-    ctx.lineWidth   = 3;
-    ctx.lineCap     = 'round';
+    ctx.lineWidth   = 4;
     ctx.beginPath();
-    ctx.moveTo(GS.pivotX, GS.pivotY + 2);
-    ctx.lineTo(GS.pivotX, GS.pivotY + 2 + GS.ropeLen * 0.5);
+    ctx.moveTo(0, 0);
+    ctx.lineTo(0, ropeH);
     ctx.stroke();
+    ctx.fillStyle = '#9ca3af';
+    ctx.beginPath();
+    ctx.arc(0, ropeH, 8, 0, Math.PI * 2);
+    ctx.fill();
   }
   ctx.restore();
+
+  // After draw, update pivotY so blockCentreCanvas uses correct value
+  GS.pivotY    = pivotCanvasY;
+  GS.ropeDrawH = ropeH;   // store so block attachment matches
+}
+
+// Helper: block-centre canvas position when swinging (re-derived from draw geometry)
+// Overrides blockCentreCanvas() which uses GS.pivotY + GS.ropeLen.
+// The block hangs at pivot + ropeH along the rope direction.
+function blockCentreCanvas() {
+  var ropeH = GS.ropeDrawH || (GS.ropeLen + Math.round(GS.blockSz * 0.55));
+  var bx = GS.pivotX + Math.sin(GS.angle) * ropeH;
+  var by = GS.pivotY + Math.cos(GS.angle) * ropeH;
+  return { x: bx, y: by };
 }
 
 // ── Hanging block on the crane rope ───────────────────────
