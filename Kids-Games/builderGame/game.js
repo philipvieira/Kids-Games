@@ -106,48 +106,53 @@ function loadAssets(callback) {
    Row 5 (sy:520, sh:34): platform tiles.
 
    To adjust a sprite, change its sx/sy/sw/sh values here. ─────────── */
+// ── BLOCK_SPRITES — coordinates match the generated blocks.png sprite sheet ──
+// Sheet layout (700px tall, 1024px wide):
+//   Row 0 y=0   h=120 : 5 squares  (120×120 each, 4px gap)
+//   Row 1 y=120 h=80  : 4 rects    (200×80  each, 4px gap)
+//   Row 2 y=200 h=120 : triangle / arch / circle  (120×120 each)
+//   Row 3 y=320 h=60  : plank_wide / plank_thin   (300×60  each)
+//   Row 4 y=380 h=130 : rainbow / bouncy / sticky / star
+//   Row 5 y=510 h=100 : power-up icons (100×100 each)
+//   Row 6 y=610 h=80  : heavy platforms (300×80 each)
 const BLOCK_SPRITES = {
-  // Row 1: 5 square variants (random colour per piece)
   square: [
-    { sx: 176, sy: 36, sw: 124, sh: 124 }, // yellow
-    { sx: 300, sy: 36, sw: 124, sh: 124 }, // red
-    { sx: 424, sy: 36, sw: 124, sh: 124 }, // green
-    { sx: 548, sy: 36, sw: 124, sh: 124 }, // blue
-    { sx: 672, sy: 36, sw: 123, sh: 124 }, // purple
+    { sx:   0, sy:   0, sw: 120, sh: 120 }, // yellow
+    { sx: 124, sy:   0, sw: 120, sh: 120 }, // red
+    { sx: 248, sy:   0, sw: 120, sh: 120 }, // green
+    { sx: 372, sy:   0, sw: 120, sh: 120 }, // blue
+    { sx: 496, sy:   0, sw: 120, sh: 120 }, // purple
   ],
-  // Row 2: 4 rectangle variants
   rect: [
-    { sx: 178, sy: 160, sw: 163, sh: 115 }, // orange
-    { sx: 341, sy: 160, sw: 163, sh: 115 }, // pink
-    { sx: 504, sy: 160, sw: 163, sh: 115 }, // blue
-    { sx: 667, sy: 160, sw: 164, sh: 115 }, // purple
+    { sx:   0, sy: 120, sw: 200, sh: 80 }, // orange
+    { sx: 204, sy: 120, sw: 200, sh: 80 }, // pink
+    { sx: 408, sy: 120, sw: 200, sh: 80 }, // blue
+    { sx: 612, sy: 120, sw: 200, sh: 80 }, // purple
   ],
-  // Row 3: unique shapes
-  triangle: [{ sx: 170, sy: 275, sw: 119, sh: 140 }], // green triangle
-  arch:     [{ sx: 299, sy: 275, sw: 191, sh: 130 }], // blue arch (U-shape)
-  circle:   [{ sx: 490, sy: 275, sw: 150, sh: 140 }], // yellow smiley circle
-  plank:    [
-    { sx: 640, sy: 250, sw: 192, sh: 63  }, // thin upper plank
-    { sx: 640, sy: 320, sw: 273, sh: 70  }, // wide lower plank
+  triangle: [{ sx:   0, sy: 200, sw: 120, sh: 120 }],
+  arch:     [{ sx: 124, sy: 200, sw: 120, sh: 120 }],
+  circle:   [{ sx: 248, sy: 200, sw: 120, sh: 120 }],
+  plank: [
+    { sx:   0, sy: 320, sw: 300, sh: 60 }, // wide brown plank
+    { sx: 304, sy: 320, sw: 300, sh: 60 }, // thin brown plank
   ],
-  // Row 4: special blocks
-  rainbow: [{ sx: 164, sy: 390, sw: 109, sh: 140 }], // rainbow rect
-  bouncy:  [{ sx: 273, sy: 390, sw: 109, sh: 140 }], // red balloon
-  sticky:  [{ sx: 400, sy: 390, sw: 107, sh: 140 }], // blue glue cube
-  star:    [{ sx: 507, sy: 390, sw: 108, sh: 140 }], // yellow star
-  // Row 5: platform tiles used for heavy block
+  rainbow: [{ sx:   0, sy: 380, sw: 160, sh: 130 }],
+  bouncy:  [{ sx: 164, sy: 380, sw: 100, sh: 130 }],
+  sticky:  [{ sx: 268, sy: 380, sw: 120, sh: 130 }],
+  star:    [{ sx: 392, sy: 380, sw: 120, sh: 130 }],
   heavy: [
-    { sx: 160, sy: 520, sw: 216, sh: 34 }, // grass platform
-    { sx: 648, sy: 520, sw: 187, sh: 34 }, // stone platform
+    { sx:   0, sy: 610, sw: 300, sh: 80 }, // grass platform
+    { sx: 304, sy: 610, sw: 300, sh: 80 }, // wood platform
+    { sx: 608, sy: 610, sw: 300, sh: 80 }, // stone platform
   ],
 };
 
-/* ── POWER-UP ICON SPRITES (blocks.png row 4 right cluster) ─────── */
+/* ── POWER-UP ICON SPRITES ──────────────────────────────────────── */
 const PU_SPRITES = {
-  slowtime:  { sx: 635, sy: 390, sw: 131, sh: 140 }, // hourglass
-  undo:      { sx: 766, sy: 390, sw: 131, sh: 140 }, // refresh circle
-  stabilize: { sx: 635, sy: 390, sw: 131, sh: 140 }, // reuse hourglass as fallback
-  giant:     { sx: 548, sy:  36, sw: 124, sh: 124 }, // big blue square
+  slowtime:  { sx:   0, sy: 510, sw: 100, sh: 100 }, // hourglass
+  undo:      { sx: 104, sy: 510, sw: 100, sh: 100 }, // refresh circle
+  stabilize: { sx:   0, sy: 510, sw: 100, sh: 100 }, // reuse hourglass
+  giant:     { sx: 208, sy: 510, sw: 100, sh: 100 }, // golden hammer
 };
 
 // background.png: the visual grass/dirt boundary sits at ~82% from the top.
