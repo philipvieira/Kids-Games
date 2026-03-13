@@ -68,6 +68,12 @@ const MAX_GAME_W      = 420;    // px — game column never wider than this (mat
 const BLOCK_SIZE_FRAC = 0.22;   // block side = gameW * this
 const MIN_BLOCK_PX    = 16;     // minimum block width before game ends
 
+// Crane image anchor fractions (measured from source PNG transparent padding):
+//   cranebar.png  — bar beam bottom is at 55% of image height
+//   cranerope.png — hook ring bottom is at 88% of image height
+const BAR_PIVOT_FRAC = 0.55;
+const HOOK_TIP_FRAC  = 0.88;
+
 // ── Combo messages ─────────────────────────────────────────
 const COMBO_MSGS = [
   { at: 2,  text: 'קומבו! x2 🔥' },
@@ -382,15 +388,20 @@ function updateSwing(dt) {
   GS.angle   = Math.sin(GS.swingT) * currentSwingAmp();
 }
 
-// Release block — falls straight down from hook position
+// Release block — falls straight down from current hook position
 function handleDrop() {
   if (!GS.running || GS.paused || GS.dropping || GS.tumbling) return;
   SoundFX.unlock();
   GS.dropping = true;
 
-  // Block centre at release: hookX, hookY + half block size
-  GS.dropX  = GS.hookCanvasX;
-  GS.dropY  = (GS.canvasH - (GS.hookCanvasY + GS.blockSz / 2)) + GS.cameraY;
+  // Recompute hook position fresh from current angle — don't rely on cached value
+  var hookTipLocal = GS.ropeLen * HOOK_TIP_FRAC;
+  var hookCanvasX  = GS.pivotX + Math.sin(GS.angle) * hookTipLocal;
+  var hookCanvasY  = GS.pivotY + Math.cos(GS.angle) * hookTipLocal;
+
+  // Block centre: hook tip X, hook tip Y + half block size downward
+  GS.dropX  = hookCanvasX;
+  GS.dropY  = (GS.canvasH - (hookCanvasY + GS.blockSz / 2)) + GS.cameraY;
   GS.dropVY = 0;
 }
 
@@ -797,10 +808,6 @@ function drawLetterbox() {
 // Fractions used:
 //   BAR_PIVOT_FRAC  = 0.55  (pivot = bottom of bar beam inside bar image)
 //   HOOK_TIP_FRAC   = 0.88  (hook ring bottom inside rope image)
-
-var BAR_PIVOT_FRAC = 0.55;   // pivot Y as fraction of drawn bar height
-var HOOK_TIP_FRAC  = 0.88;   // hook tip Y as fraction of drawn rope height
-
 function drawCraneArm() {
   var sz      = GS.blockSz;
   var ropeLen = GS.ropeLen;
