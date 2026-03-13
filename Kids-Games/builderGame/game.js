@@ -305,9 +305,9 @@ function spawnNextPiece() {
   const p  = GS.currentPiece;
   p.x      = GS.canvasW / 2;
   const ph = getPiecePixH(p);
-  // Spawn above the visible canvas top so the piece falls into view.
-  // toWorldY(0) = world Y at the canvas top edge. Add ph+20 to go above it.
-  p.worldY   = toWorldY(0) + ph + 20;
+  // Spawn just above the visible canvas top so the piece enters from off-screen.
+  // toWorldY(0) = world Y at canvas top edge. Subtract a tiny margin so it starts hidden.
+  p.worldY   = toWorldY(-ph - 4);
   p.vy       = 0;
   p.onGround = false;
   p.wobble   = { ang: 0, vel: 0 };
@@ -579,18 +579,19 @@ function updateWobble() {
 // When tower grows, we smoothly scroll the camera up so the top is always visible.
 
 function updateCamera() {
-  const topWorldY       = GS.towerHeight * GS.cellPx;
-  const curPieceTop     = GS.currentPiece ? GS.currentPiece.worldY + getPiecePixH(GS.currentPiece) / 2 : 0;
-  const highestPoint    = Math.max(topWorldY, curPieceTop);
+  // Only track the placed tower height — don't follow the falling piece.
+  // The piece should fall visibly into view from the top.
+  const topWorldY      = GS.towerHeight * GS.cellPx;
 
-  // We want the highest point to sit at ~25% from the top of the canvas.
-  // toCanvasY(highestPoint) = canvasH - 12 - (highestPoint - cameraY) = canvasH * 0.25
-  // => cameraY = highestPoint - canvasH * 0.75 + 12
-  const desiredCameraY  = highestPoint - GS.canvasH * 0.75 + 12;
+  // We want the tower top to sit at ~30% from the top of the canvas.
+  // toCanvasY(topWorldY) = canvasH - 12 - (topWorldY - cameraY) = canvasH * 0.30
+  // => cameraY = topWorldY - canvasH * 0.70 + 12
+  const desiredCameraY = topWorldY - GS.canvasH * 0.70 + 12;
 
-  // Only scroll up (increase cameraY), never scroll down below 0
+  // Only scroll up when tower grows tall enough to need it.
+  // Never scroll down below 0 (ground must stay at canvas bottom).
   if (desiredCameraY > GS.cameraY) {
-    GS.cameraY += (desiredCameraY - GS.cameraY) * 0.04;
+    GS.cameraY += (desiredCameraY - GS.cameraY) * 0.05;
   }
   if (GS.cameraY < 0) GS.cameraY = 0;
 }
@@ -631,12 +632,14 @@ function drawBackground(ctx, W, H) {
   // Clouds
   drawClouds(ctx, W, H);
 
-  // Ground — always at bottom of canvas
-  const groundCanvasY = H - 12;
-  ctx.fillStyle = '#8B6914';
-  ctx.fillRect(0, groundCanvasY, W, 12);
-  ctx.fillStyle = '#6B8E23';
-  ctx.fillRect(0, groundCanvasY - 4, W, 6);
+  // Ground — draw at the world Y=0 position (scrolls with camera)
+  const groundCanvasY = toCanvasY(0);
+  if (groundCanvasY < H) { // only draw if visible
+    ctx.fillStyle = '#8B6914';
+    ctx.fillRect(0, groundCanvasY, W, H - groundCanvasY + 12);
+    ctx.fillStyle = '#6B8E23';
+    ctx.fillRect(0, groundCanvasY - 4, W, 6);
+  }
 }
 
 // Simple animated clouds (position based on time so they drift)
