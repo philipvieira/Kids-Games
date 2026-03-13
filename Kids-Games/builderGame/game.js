@@ -74,15 +74,14 @@ const PU_DEFS = [
 // 1b. ASSET LOADER & SPRITE DEFINITIONS
 // ════════════════════════════════════════════════════════════
 //
-// Three separate image files:
+// Two image files:
 //   background.png — full construction-scene background (1024×682, opaque)
 //   blocks.png     — block/special sprites, transparent background (1024×682)
-//   hud.png        — UI / HUD elements (1024×682, transparent background)
 
-const ASSETS = { bg: null, blocks: null, hud: null, ready: false };
+const ASSETS = { bg: null, blocks: null, ready: false };
 
 function loadAssets(callback) {
-  var loaded = 0, total = 3;
+  var loaded = 0, total = 2;
   function onLoad() { if (++loaded === total) { ASSETS.ready = true; callback(); } }
   function load(key, src) {
     var img = new Image();
@@ -92,7 +91,6 @@ function loadAssets(callback) {
   }
   load('bg',     'background.png');
   load('blocks', 'blocks.png');
-  load('hud',    'hud.png');
 }
 
 /* ── BLOCK SPRITES (blocks.png — transparent bg, 1024×682) ───────────
@@ -150,23 +148,6 @@ const PU_SPRITES = {
   undo:      { sx: 766, sy: 390, sw: 131, sh: 140 }, // refresh circle
   stabilize: { sx: 635, sy: 390, sw: 131, sh: 140 }, // reuse hourglass as fallback
   giant:     { sx: 548, sy:  36, sw: 124, sh: 124 }, // big blue square
-};
-
-/* ── HUD SPRITES (hud.png — transparent bg, 1024×682) ───────────────
-   Used to draw UI panels directly on canvas or as CSS backgrounds.
-   Title banner, score panel, level panel, lives, buttons. ─────────── */
-const HUD_SPRITES = {
-  titleBanner: { sx: 235, sy:  24, sw: 553, sh: 173 }, // "SIMPLE BUILDER!" banner
-  scorePanel:  { sx: 101, sy: 180, sw: 219, sh: 220 }, // score box (gold/blue)
-  levelPanel:  { sx: 310, sy: 180, sw: 310, sh: 403 }, // level + progress
-  livesPanel:  { sx: 600, sy: 180, sw: 370, sh: 120 }, // lives / hearts bar
-  pauseBtn:    { sx: 608, sy: 350, sw: 132, sh: 130 }, // orange pause (II)
-  checkBtn:    { sx: 720, sy: 350, sw: 140, sh: 130 }, // green checkmark
-  menuListBtn: { sx: 840, sy: 350, sw:  72, sh: 130 }, // blue menu list
-  progressBar: { sx: 160, sy: 505, sw: 300, sh:  55 }, // gold progress bar
-  startBtn:    { sx: 570, sy: 440, sw: 347, sh: 134 }, // green START button
-  menuHelmet:  { sx: 101, sy: 380, sw:  89, sh: 150 }, // helmet menu icon
-  reloadBtn:   { sx: 180, sy: 370, sw: 150, sh: 140 }, // reload/restart
 };
 
 // background.png: the visual grass/dirt boundary sits at ~82% from the top.

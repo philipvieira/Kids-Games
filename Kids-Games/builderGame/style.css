@@ -1,5 +1,5 @@
 /* ════════════════════════════════════════════════════════════
-   בנה מגדלים — style.css  (Sprite-backed UI from assets.png)
+   בנה מגדלים — style.css
    ════════════════════════════════════════════════════════════ */
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -43,16 +43,15 @@ html, body {
 }
 .btn-back-main:hover { opacity: 1; }
 
-/* Title — sits on top of the hud.png banner drawn as background */
+/* Title */
 .game-title {
   font-size: clamp(1.6rem, 7vw, 2.8rem);
   font-weight: 900; color: #fff4a0;
   text-shadow: 0 2px 0 #7a4500, 0 4px 10px rgba(0,0,0,0.5), 0 0 30px rgba(255,210,50,0.5);
   text-align: center; line-height: 1.1;
   animation: titleBounce 2.5s ease-in-out infinite;
-  background: url('hud.png') -235px -24px / 1024px 682px no-repeat;
   width: min(480px, 92vw); margin: 0 auto 2px;
-  padding: 38px 20px 30px;
+  padding: 20px 20px 16px;
   border-radius: 12px;
 }
 @keyframes titleBounce {
@@ -85,7 +84,7 @@ html, body {
 
 /* ═══ SPRITE-BACKED BUTTONS ═══ */
 
-/* Orange mode buttons (matches the orange mode buttons in assets.png) */
+/* Orange mode buttons */
 .sprite-btn-green {
   background: linear-gradient(180deg, #f5ad45 0%, #e88020 50%, #cc6010 100%);
   color: #fff; border: 2px solid #a84e08;
@@ -126,7 +125,7 @@ html, body {
 .sprite-btn-blue:hover { transform: translateY(-2px); }
 .sprite-btn-blue:active { transform: translateY(0) scale(0.96); }
 
-/* Big play button — matches the green START button in hud.png */
+/* Big play button */
 .sprite-btn-play {
   background: linear-gradient(180deg, #88e848 0%, #42c010 50%, #2a9a04 100%);
   color: #fff; border: 3px solid #f0c030;
@@ -209,7 +208,7 @@ html, body {
 .hud-label { font-size: 0.65rem; color: rgba(255,255,255,0.7); font-weight: 700; }
 .hud-val { font-size: 1rem; color: #ffe85a; font-weight: 900; text-shadow: 0 1px 3px rgba(0,0,0,0.5); }
 
-/* HUD panel — gold border + blue interior to match hud.png score panels */
+/* HUD panel — gold border + blue interior */
 .hud-panel-sprite {
   background: linear-gradient(180deg, #1878c8 0%, #0d5aa8 100%);
   border: 3px solid #f0c030;
@@ -219,7 +218,7 @@ html, body {
 .hud-panel-sprite .hud-label { color: #ffe85a; font-size: 0.6rem; font-weight: 900; letter-spacing: 0.5px; }
 .hud-panel-sprite .hud-val   { color: #fff; font-size: 1rem; }
 
-/* HUD pause button — orange/gold to match hud.png pause button */
+/* HUD pause button */
 .hud-btn-sprite {
   background: linear-gradient(180deg, #f5a820 0%, #d87008 100%);
   border: 3px solid #f0c030;
