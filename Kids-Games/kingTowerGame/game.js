@@ -332,9 +332,10 @@ function currentSwingAmp() {
   return Math.min(getCfg().swingAmp + GS.floor * AMP_RAMP, MAX_SWING);
 }
 
-// Advance pendulum one frame
-function updateSwing() {
-  GS.swingT += currentSwingSpeed();
+// Advance pendulum one frame (dt in ms, target 60fps = 16.67ms per frame)
+function updateSwing(dt) {
+  var scale = dt / 16.667;
+  GS.swingT += currentSwingSpeed() * scale;
   GS.angle   = Math.sin(GS.swingT) * currentSwingAmp();
 }
 
@@ -355,10 +356,11 @@ function handleDrop() {
 }
 
 // ── Drop physics ──────────────────────────────────────────
-function updateDrop() {
-  GS.dropVY  += 0.55;
+function updateDrop(dt) {
+  var scale = dt / 16.667;
+  GS.dropVY  += 0.55 * scale;
   GS.dropVY   = Math.min(GS.dropVY, 24);
-  GS.dropY   -= GS.dropVY;   // world Y decreases as block falls
+  GS.dropY   -= GS.dropVY * scale;   // world Y decreases as block falls
 
   // Bottom of falling block in world coords
   var blockBot = GS.dropY - GS.blockSz / 2;
@@ -399,15 +401,9 @@ function landBlock() {
     return;
   }
 
-  // New floor x/w
-  var newW, newX;
-  if (GS.mode === 'free') {
-    newW = GS.blockSz;
-    newX = Math.max(GS.gameX, Math.min(GS.gameX + GS.gameW - newW, blockCX - newW / 2));
-  } else {
-    newW = overlap;
-    newX = overlapL;
-  }
+  // New floor x/w — always full block size (no trimming)
+  var newW = GS.blockSz;
+  var newX = Math.max(GS.gameX, Math.min(GS.gameX + GS.gameW - newW, blockCX - newW / 2));
 
   // Perfect?
   var offset    = Math.abs(blockCX - towerCX);
@@ -538,8 +534,9 @@ function updateCamera() {
   var minCameraY  = ttw - GS.canvasH + craneBottom;
   GS.targetCameraY = Math.max(0, minCameraY);
 }
-function applyCamera() {
-  GS.cameraY += (GS.targetCameraY - GS.cameraY) * 0.07;
+function applyCamera(dt) {
+  var scale = dt / 16.667;
+  GS.cameraY += (GS.targetCameraY - GS.cameraY) * 0.07 * scale;
 }
 
 // ── Main render ───────────────────────────────────────────
@@ -872,6 +869,7 @@ function startGame() {
     updateHUD();
     initBlock();
     GS.running = true;
+    _lastTime  = 0;   // reset so first frame has clean dt
     // Resume music (don't restart from 0 — fix #1)
     BgMusic.resume();
     GS.loopId = requestAnimationFrame(mainLoop);
@@ -1121,14 +1119,20 @@ document.addEventListener('DOMContentLoaded', function() {
 // 14. MAIN LOOP
 // ════════════════════════════════════════════════════════════
 
-function mainLoop() {
+var _lastTime = 0;
+
+function mainLoop(timestamp) {
   if (!GS.running) return;
   GS.loopId = requestAnimationFrame(mainLoop);
 
+  // Delta time in ms, capped at 50ms (handles tab switching / slow frames)
+  var dt = _lastTime ? Math.min(timestamp - _lastTime, 50) : 16.667;
+  _lastTime = timestamp;
+
   if (!GS.paused) {
-    applyCamera();
-    if (GS.dropping) updateDrop();
-    else             updateSwing();
+    applyCamera(dt);
+    if (GS.dropping) updateDrop(dt);
+    else             updateSwing(dt);
   }
 
   renderFrame();
