@@ -50,9 +50,10 @@ html, body {
   text-shadow: 0 2px 0 #7a4500, 0 4px 10px rgba(0,0,0,0.5), 0 0 30px rgba(255,210,50,0.5);
   text-align: center; line-height: 1.1;
   animation: titleBounce 2.5s ease-in-out infinite;
-  width: min(480px, 92vw); margin: 0 auto 2px;
-  padding: 20px 20px 16px;
+  width: 100%; margin: 0 auto 2px;
+  padding: 20px 10px 16px;
   border-radius: 12px;
+  box-sizing: border-box;
 }
 @keyframes titleBounce {
   0%,100% { transform: translateY(0) scale(1); }
