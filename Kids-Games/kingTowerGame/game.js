@@ -148,9 +148,11 @@ const GS = {
   dropY:   0,       // top-edge Y of falling block in WORLD coords
   dropVY:  0,
 
-  // Block colour
-  blockColor: '#60a5fa',
-  nextColor:  '#f87171',
+  // Block colour + sprite
+  blockColor:  '#60a5fa',
+  nextColor:   '#f87171',
+  blockSprite: null,   // current sprite cell { x, y }
+  nextSprite:  null,
 
   // Scoring
   score: 0,
@@ -212,6 +214,7 @@ function resetRuntime() {
   GS.tumble         = null;
   GS.swayAngle      = 0;
   GS.swayVel        = 0;
+  GS.perfectBounce  = 0;
   // blockSz / baseSz reset happens in startGame after resizeCanvas, not here.
   if (GS.loopId) { cancelAnimationFrame(GS.loopId); GS.loopId = null; }
 }
@@ -299,9 +302,37 @@ const CHALLENGE_LEVELS = [
 var perfectsThisGame = 0;
 
 // ════════════════════════════════════════════════════════════
-// 6. BLOCK COLOURS
+// 6. BLOCK SPRITES  (platform_faces.png — 3×3 grid, 256×256 each)
 // ════════════════════════════════════════════════════════════
 
+// The sprite sheet is 768×768 (3 cols × 3 rows of 256×256 sprites).
+// Physics are unaffected — the sprite is purely decorative.
+const BLOCK_SPRITES = [
+  { x: 0,   y: 0   },   // row 0
+  { x: 256, y: 0   },
+  { x: 512, y: 0   },
+  { x: 0,   y: 256 },   // row 1
+  { x: 256, y: 256 },
+  { x: 512, y: 256 },
+  { x: 0,   y: 512 },   // row 2
+  { x: 256, y: 512 },
+  { x: 512, y: 512 },
+];
+const SPRITE_CELL = 256;  // px of each cell in the sheet
+
+var facesImg = null;
+var facesLoaded = false;
+(function loadFaces() {
+  facesImg = new Image();
+  facesImg.onload = function() { facesLoaded = true; };
+  facesImg.src = 'assets/platform_faces.png';
+})();
+
+function randomSprite() {
+  return BLOCK_SPRITES[Math.floor(Math.random() * BLOCK_SPRITES.length)];
+}
+
+// BLOCK COLOURS kept as fallback / tint reference (not drawn unless image fails)
 const BLOCK_COLORS = [
   '#60a5fa','#f87171','#4ade80','#facc15',
   '#c084fc','#fb923c','#34d399','#f472b6',
@@ -325,12 +356,15 @@ function blockCentreCanvas() {
 
 // Initialise a new block at the crane
 function initBlock() {
-  GS.dropping   = false;
-  GS.tumbling   = false;
-  GS.dropVY     = 0;
-  GS.blockColor = GS.nextColor || BLOCK_COLORS[0];
-  GS.nextColor  = nextColor();
-  GS.angle      = getCfg().swingAmp;
+  GS.dropping    = false;
+  GS.tumbling    = false;
+  GS.dropVY      = 0;
+  GS.blockColor  = GS.nextColor  || BLOCK_COLORS[0];
+  GS.blockSprite = GS.nextSprite || randomSprite();
+  GS.nextColor   = nextColor();
+  GS.nextSprite  = randomSprite();
+  GS.angle       = getCfg().swingAmp;
+  GS.perfectBounce = 0;  // bounce scale timer (0 = none)
 }
 
 function getCfg() { return DIFF_CFG[GS.diff]; }
@@ -460,13 +494,14 @@ function landBlock() {
     // Initial tumble state
     GS.tumble = {
       x:     blockCX,
-      y:     blockLandY + GS.blockSz / 2,  // world Y of block centre
+      y:     blockLandY + GS.blockSz / 2,
       vx:    tipDir * 1.2,
       vy:    0,
       angle: 0,
-      avel:  tipDir * 0.08,               // angular velocity (rad/frame)
+      avel:  tipDir * 0.08,
       dir:   tipDir,
       color: GS.blockColor,
+      sprite: GS.blockSprite,
       pivotX: pivotX,
     };
 
@@ -482,17 +517,16 @@ function landBlock() {
   var newW = GS.blockSz;
 
   var floorWorldY = towerTopWorld();
-  GS.floors.push({ x: newX, w: newW, h: GS.blockSz, worldY: floorWorldY, color: GS.blockColor });
+  GS.floors.push({ x: newX, w: newW, h: GS.blockSz, worldY: floorWorldY, color: GS.blockColor, sprite: GS.blockSprite });
   GS.floor++;
 
   // Trigger tower sway proportional to how off-centre the block landed
-  // (kick the sway velocity in the direction of the lean)
   if (!isPerfect && GS.floor > 1) {
-    var swayKick = (offset / GS.blockSz) * 18;  // max ~9px kick at full offset
+    var swayKick = (offset / GS.blockSz) * 18;
     GS.swayVel += swayKick;
   } else if (isPerfect) {
-    // Perfect landing = slight counter-sway settling
     GS.swayVel *= 0.4;
+    GS.perfectBounce = 1.0;  // start bounce animation
   }
 
   scoreBlock(isPerfect, absOffset, towerW);
@@ -681,12 +715,12 @@ function drawGround() {
 
 // ── Tower floors ──────────────────────────────────────────
 function drawFloor(fl, floorIndex, totalFloors) {
-  var h         = fl.h;                          // this floor's height at time of landing
+  var h         = fl.h;
   var topCanvas = toCanvasY(fl.worldY + h);
   var botCanvas = toCanvasY(fl.worldY);
   if (topCanvas > GS.canvasH || botCanvas < 0) return;
 
-  // Sway: floors higher up sway more (linear from 0 at base to full at top)
+  // Sway: floors higher up sway more
   var swayFrac = totalFloors > 1 ? floorIndex / (totalFloors - 1) : 0;
   var swayX    = GS.swayAngle * swayFrac;
   var x = fl.x + swayX, w = fl.w;
@@ -695,29 +729,44 @@ function drawFloor(fl, floorIndex, totalFloors) {
   ctx.save();
   ctx.globalAlpha = 0.22;
   ctx.fillStyle = '#000';
-  drawBlock(x + 4, topCanvas + 4, w, h, 8);
+  ctx.beginPath();
+  ctx.rect(x + 4, topCanvas + 4, w, h);
   ctx.fill();
   ctx.restore();
 
-  // Body
-  ctx.fillStyle = fl.color;
-  drawBlock(x, topCanvas, w, h, 8);
-  ctx.fill();
+  drawFaceBlock(x, topCanvas, w, h, fl.sprite, fl.color, 1);
+}
 
-  // Top shine
+// ── Core sprite-sheet block draw ──────────────────────────
+// Draws one face block from the sprite sheet. Falls back to solid colour if image not ready.
+// scale: 1 = normal, >1 = bounce expand, centred on block
+function drawFaceBlock(x, y, w, h, sprite, color, scale) {
+  var cx = x + w / 2, cy = y + h / 2;
+
   ctx.save();
-  ctx.globalAlpha = 0.38;
-  ctx.fillStyle = '#fff';
-  drawBlock(x + 4, topCanvas + 4, w - 8, h * 0.40, 5);
-  ctx.fill();
-  ctx.restore();
+  if (scale !== 1) {
+    ctx.translate(cx, cy);
+    ctx.scale(scale, scale);
+    ctx.translate(-cx, -cy);
+  }
 
-  // Stroke
-  ctx.strokeStyle = darken(fl.color);
-  ctx.lineWidth   = 2;
-  ctx.globalAlpha = 1;
-  drawBlock(x, topCanvas, w, h, 8);
-  ctx.stroke();
+  if (facesLoaded && sprite) {
+    ctx.drawImage(
+      facesImg,
+      sprite.x, sprite.y, SPRITE_CELL, SPRITE_CELL,
+      x, y, w, h
+    );
+  } else {
+    // Fallback: solid colour block while image loads
+    ctx.fillStyle = color || '#60a5fa';
+    ctx.beginPath();
+    ctx.rect(x, y, w, h);
+    ctx.fill();
+    ctx.strokeStyle = darken(color || '#60a5fa');
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 // ── Letterbox (desktop side panels) ──────────────────────
@@ -774,55 +823,71 @@ function drawCraneArm() {
 
 // ── Hanging block on the crane rope ───────────────────────
 function drawHangingBlock() {
-  var pos = blockCentreCanvas();
-  var sz  = GS.blockSz;
-  drawColorBlock(pos.x - sz / 2, pos.y - sz / 2, sz, sz, GS.blockColor);
+  var pos   = blockCentreCanvas();
+  var sz    = GS.blockSz;
+  // Perfect bounce: scale from 1.05 → 1.0 over ~300ms
+  var scale = 1;
+  if (GS.perfectBounce > 0) {
+    scale = 1 + GS.perfectBounce * 0.05;
+    GS.perfectBounce = Math.max(0, GS.perfectBounce - 0.06);
+  }
+  drawFaceBlock(pos.x - sz / 2, pos.y - sz / 2, sz, sz, GS.blockSprite, GS.blockColor, scale);
 }
 
 // ── Falling block ─────────────────────────────────────────
 function drawFallingBlock() {
-  var sz  = GS.blockSz;
+  var sz   = GS.blockSz;
   var canY = toCanvasY(GS.dropY);
-  var topY = canY - sz / 2;
-  drawColorBlock(GS.dropX - sz / 2, topY, sz, sz, GS.blockColor);
+  drawFaceBlock(GS.dropX - sz / 2, canY - sz / 2, sz, sz, GS.blockSprite, GS.blockColor, 1);
 }
 
 // ── Tumbling block (tipping off edge) ─────────────────────
 function drawTumblingBlock() {
   if (!GS.tumble) return;
-  var t   = GS.tumble;
-  var sz  = GS.blockSz;
-  var canY = toCanvasY(t.y);   // canvas Y of block centre
+  var t    = GS.tumble;
+  var sz   = GS.blockSz;
+  var canY = toCanvasY(t.y);
 
   ctx.save();
   ctx.translate(t.x, canY);
   ctx.rotate(t.angle);
   ctx.translate(-t.x, -canY);
-  drawColorBlock(t.x - sz / 2, canY - sz / 2, sz, sz, t.color);
+  drawFaceBlock(t.x - sz / 2, canY - sz / 2, sz, sz, t.sprite, t.color, 1);
   ctx.restore();
 }
 
-// ── Coloured square block helper ──────────────────────────
-function drawColorBlock(x, y, w, h, color) {
+// ── Core sprite-sheet block draw ──────────────────────────
+// sprite: { x, y } cell coords in the sheet. color: fallback fill.
+// scale: applied centred on the block (for bounce).
+function drawFaceBlock(x, y, w, h, sprite, color, scale) {
+  var cx = x + w / 2, cy = y + h / 2;
   ctx.save();
+  if (scale !== 1) {
+    ctx.translate(cx, cy);
+    ctx.scale(scale, scale);
+    ctx.translate(-cx, -cy);
+  }
+  // Shadow
   ctx.globalAlpha = 0.22;
   ctx.fillStyle   = '#000';
-  drawBlock(x + 4, y + 4, w, h, 8); ctx.fill();
-  ctx.restore();
-
-  ctx.fillStyle = color;
-  drawBlock(x, y, w, h, 8); ctx.fill();
-
-  ctx.save();
-  ctx.globalAlpha = 0.38;
-  ctx.fillStyle   = '#fff';
-  drawBlock(x + 4, y + 4, w - 8, h * 0.40, 5); ctx.fill();
-  ctx.restore();
-
-  ctx.strokeStyle = darken(color);
-  ctx.lineWidth   = 2;
+  ctx.fillRect(x + 4, y + 4, w, h);
   ctx.globalAlpha = 1;
-  drawBlock(x, y, w, h, 8); ctx.stroke();
+
+  if (facesLoaded && sprite) {
+    ctx.drawImage(facesImg, sprite.x, sprite.y, SPRITE_CELL, SPRITE_CELL, x, y, w, h);
+  } else {
+    ctx.fillStyle = color || '#60a5fa';
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = darken(color || '#60a5fa');
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, w, h);
+  }
+  ctx.restore();
+}
+
+// ── Kept for internal use only ────────────────────────────
+function drawColorBlock(x, y, w, h, color) {
+  drawFaceBlock(x, y, w, h, null, color, 1);
 }
 
 // ── Drop hint: "tap to drop" arrow ────────────────────────
@@ -957,8 +1022,10 @@ function startGame() {
   // blockSz already set to baseSz by resizeCanvas (running=false at that point)
   colorIdx   = 0;
   perfectsThisGame = 0;
-  GS.blockColor = BLOCK_COLORS[0];
-  GS.nextColor  = nextColor();
+  GS.blockColor  = BLOCK_COLORS[0];
+  GS.nextColor   = nextColor();
+  GS.blockSprite = randomSprite();
+  GS.nextSprite  = randomSprite();
 
   showScreen('screen-game');
 
