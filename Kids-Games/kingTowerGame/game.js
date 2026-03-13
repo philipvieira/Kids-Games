@@ -394,12 +394,13 @@ function handleDrop() {
   SoundFX.unlock();
   GS.dropping = true;
 
-  // Recompute hook position fresh from current angle — don't rely on cached value
+  // Canvas rotation maps local (0, hookTipLocal) to:
+  //   canvasX = pivotX - sin(angle) * hookTipLocal   (minus! canvas rotation is clockwise)
+  //   canvasY = pivotY + cos(angle) * hookTipLocal
   var hookTipLocal = GS.ropeLen * HOOK_TIP_FRAC;
-  var hookCanvasX  = GS.pivotX + Math.sin(GS.angle) * hookTipLocal;
+  var hookCanvasX  = GS.pivotX - Math.sin(GS.angle) * hookTipLocal;
   var hookCanvasY  = GS.pivotY + Math.cos(GS.angle) * hookTipLocal;
 
-  // Block centre: hook tip X, hook tip Y + half block size downward
   GS.dropX  = hookCanvasX;
   GS.dropY  = (GS.canvasH - (hookCanvasY + GS.blockSz / 2)) + GS.cameraY;
   GS.dropVY = 0;
@@ -902,8 +903,8 @@ function drawCraneArm() {
 
   ctx.restore();
 
-  // Write hook canvas position for handleDrop
-  GS.hookCanvasX = pivX + Math.sin(GS.angle) * hookTipLocal;
+  // Store hook canvas position (canvas rotation: x' = -sin(θ)*y, y' = cos(θ)*y)
+  GS.hookCanvasX = pivX - Math.sin(GS.angle) * hookTipLocal;
   GS.hookCanvasY = pivY + Math.cos(GS.angle) * hookTipLocal;
 }
 
