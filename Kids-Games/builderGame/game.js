@@ -67,7 +67,6 @@ const PU_DEFS = [
   { id: 'slowtime',   icon: '🐢', name: 'עצור זמן',   dur: 5000  },
   { id: 'stabilize',  icon: '🧱', name: 'יציבות',     dur: 6000  },
   { id: 'undo',       icon: '↩️',  name: 'בטל',        dur: 0     },
-  { id: 'magichold',  icon: '❄️',  name: 'הקפאה',      dur: 3000  },
   { id: 'giant',      icon: '🦾', name: 'ענק',         dur: 0     },
 ];
 
@@ -303,10 +302,13 @@ function spawnNextPiece() {
   refillQueue();
   GS.currentPiece = GS.pieceQueue.shift();
   const p  = GS.currentPiece;
-  p.x      = GS.canvasW / 2;
+  const pw = getPiecePixW(p);
+  // Random horizontal offset: up to ±25% of canvas width from center, clamped to edges
+  const maxOffset = GS.canvasW * 0.25;
+  const offset    = (Math.random() - 0.5) * 2 * maxOffset;
+  p.x      = Math.max(pw / 2 + 8, Math.min(GS.canvasW - pw / 2 - 8, GS.canvasW / 2 + offset));
   const ph = getPiecePixH(p);
-  // Spawn just above the visible canvas top so the piece enters from off-screen.
-  // toWorldY(0) = world Y at canvas top edge. Subtract a tiny margin so it starts hidden.
+  // Spawn just above the visible canvas top so the piece enters from off-screen
   p.worldY   = toWorldY(-ph - 4);
   p.vy       = 0;
   p.onGround = false;
@@ -415,10 +417,7 @@ function applyPhysics(dt) {
 
   const cfg        = DIFF_CFG[GS.diff];
   const slowFactor = (GS.activePU && GS.activePU.def.id === 'slowtime') ? 0.35 : 1;
-  if (GS.activePU && GS.activePU.def.id === 'magichold') return;
-
   // Fixed per-frame gravity (no dt scaling — runs at ~60fps via rAF)
-  // gravity values in cfg are already tuned for 60fps
   let grav = cfg.gravity * slowFactor;
   if (GS.softDrop) grav *= 4;
 
@@ -513,13 +512,13 @@ function updateTowerHeight() {
 
 function checkCollapse() {
   if (GS.placedPieces.length < 2) return;
-  const cfg    = DIFF_CFG[GS.diff];
-  // Count pieces that have fallen off world (worldY very negative or x way out of bounds)
-  const fallen = GS.placedPieces.filter(function(pl) {
-    return pl.worldY < -GS.canvasH * 2 || pl.x < -100 || pl.x > GS.canvasW + 100;
+  const cfg      = DIFF_CFG[GS.diff];
+  const total    = GS.placedPieces.length;
+  // Pieces that have tipped or fallen off-world
+  const fallen   = GS.placedPieces.filter(function(pl) {
+    return !pl.onGround || pl.worldY < -GS.canvasH * 2 || pl.x < -100 || pl.x > GS.canvasW + 100;
   }).length;
-  const total  = GS.placedPieces.length;
-  if (total > 3 && fallen / total >= cfg.collapseRatio) {
+  if (total > 2 && fallen / total >= cfg.collapseRatio) {
     endGame('collapse');
   }
 }
@@ -1542,8 +1541,8 @@ function mainLoop(ts) {
     updateScoreUI();
     updateGoalUI();
 
-    // Tower mode: end if all pieces fell off after 5+ placed
-    if (GS.mode === 'tower' && GS.blocksPlaced >= 5) {
+    // Tower mode: end if all placed pieces have fallen off
+    if (GS.mode === 'tower' && GS.placedPieces.length >= 3) {
       const remaining = GS.placedPieces.filter(function(pl){ return pl.onGround; }).length;
       if (remaining === 0) {
         endGame('fallen');
