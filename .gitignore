@@ -1,0 +1,13 @@
+# ── Node.js ──────────────────────────────────────────────────
+# sharp and other dev dependencies used for image pre-processing
+node_modules/
+package-lock.json
+
+# ── Cursor IDE ───────────────────────────────────────────────
+# Local Cursor workspace config (machine-specific, not part of the game)
+.cursor/
+
+# ── OS files ─────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
