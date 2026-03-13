@@ -36,12 +36,15 @@ html, body {
   box-shadow: 0 8px 40px rgba(0,0,0,0.2);
 }
 .btn-back-main {
-  display: block; text-align: center;
-  color: #fff; font-size: 0.85rem;
-  text-decoration: none; margin-bottom: 8px;
-  opacity: 0.85; transition: opacity 0.2s;
+  display: block; width: 100%; padding: 12px;
+  background: rgba(255,255,255,0.08); color: rgba(200,210,255,0.8);
+  border: 1px solid rgba(255,255,255,0.15); border-radius: 14px;
+  font-size: 1rem; font-family: inherit; text-decoration: none;
+  cursor: pointer; transition: background 0.15s; text-align: center;
+  box-sizing: border-box; margin-bottom: 8px;
+  -webkit-tap-highlight-color: transparent;
 }
-.btn-back-main:hover { opacity: 1; }
+.btn-back-main:hover { background: rgba(255,255,255,0.13); }
 
 /* Title */
 .game-title {

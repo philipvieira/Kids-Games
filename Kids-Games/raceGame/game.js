@@ -1470,18 +1470,16 @@ function _getAudioCtx() {
   return audioCtx;
 }
 
-// Fetch + decode the audio file once
+// Fetch + decode the audio file once (must be called after a user gesture)
 function _loadMusic() {
-  if (musicLoaded) return;
+  if (musicBuffer) return Promise.resolve();
+  if (musicLoaded) return Promise.resolve();
   musicLoaded = true;
-  fetch('assets/8bit race.mp4')
+  return fetch('assets/8bit race.mp4')
     .then(r => r.arrayBuffer())
     .then(buf => _getAudioCtx().decodeAudioData(buf))
-    .then(decoded => {
-      musicBuffer = decoded;
-      if (musicWanted) _playBuffer();
-    })
-    .catch(() => {});
+    .then(decoded => { musicBuffer = decoded; })
+    .catch(() => { musicLoaded = false; });
 }
 
 function _playBuffer() {
@@ -1501,15 +1499,13 @@ function _playBuffer() {
 function startMusic() {
   musicWanted = true;
   const ctx = _getAudioCtx();
-  // Resume suspended context (required after user gesture on iOS)
+  const doPlay = () => {
+    _loadMusic().then(() => { if (musicWanted) _playBuffer(); }).catch(() => {});
+  };
   if (ctx.state === 'suspended') {
-    ctx.resume().then(() => {
-      _loadMusic();
-      if (musicBuffer) _playBuffer();
-    }).catch(() => {});
+    ctx.resume().then(doPlay).catch(() => {});
   } else {
-    _loadMusic();
-    if (musicBuffer) _playBuffer();
+    doPlay();
   }
 }
 
@@ -1520,9 +1516,6 @@ function stopMusic() {
     musicSource = null;
   }
 }
-
-// Pre-load as soon as possible (decoding runs in background)
-_loadMusic();
 
 // ═══════════════════════════════════════════════════════════════
 //  BOOT
