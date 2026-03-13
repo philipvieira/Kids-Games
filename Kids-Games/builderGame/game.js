@@ -76,23 +76,28 @@ const PU_DEFS = [
 
 const ASSETS = { bg: null, blocks: null, hud: null, ready: false };
 
-// blocks.png has a solid black background; this converts near-black
+// Sprite sheets have a solid black background; this converts near-black
 // pixels to transparent so sprites render cleanly over any backdrop.
+// Falls back to the raw image if canvas security blocks getImageData.
 function removeBlackBG(img) {
-  var c = document.createElement('canvas');
-  c.width  = img.width;
-  c.height = img.height;
-  var cx = c.getContext('2d');
-  cx.drawImage(img, 0, 0);
-  var data = cx.getImageData(0, 0, c.width, c.height);
-  var px = data.data;
-  for (var i = 0; i < px.length; i += 4) {
-    if (px[i] < 18 && px[i+1] < 18 && px[i+2] < 18) {
-      px[i+3] = 0;
+  try {
+    var c = document.createElement('canvas');
+    c.width  = img.width;
+    c.height = img.height;
+    var cx = c.getContext('2d');
+    cx.drawImage(img, 0, 0);
+    var data = cx.getImageData(0, 0, c.width, c.height);
+    var px = data.data;
+    for (var i = 0; i < px.length; i += 4) {
+      if (px[i] < 18 && px[i + 1] < 18 && px[i + 2] < 18) {
+        px[i + 3] = 0;
+      }
     }
+    cx.putImageData(data, 0, 0);
+    return c;
+  } catch (e) {
+    return img;
   }
-  cx.putImageData(data, 0, 0);
-  return c;
 }
 
 function loadAssets(callback) {
@@ -104,12 +109,12 @@ function loadAssets(callback) {
   var blocksImg = new Image();
   var hudImg    = new Image();
 
-  bgImg.onload     = function() { ASSETS.bg = bgImg; done(); };
-  bgImg.onerror    = function() { err('background.png'); };
+  bgImg.onload = function() { ASSETS.bg = bgImg; done(); };
+  bgImg.onerror = function() { err('background.png'); };
   blocksImg.onload = function() { ASSETS.blocks = removeBlackBG(blocksImg); done(); };
   blocksImg.onerror = function() { err('blocks.png'); };
-  hudImg.onload    = function() { ASSETS.hud = removeBlackBG(hudImg); done(); };
-  hudImg.onerror   = function() { err('hud.png'); };
+  hudImg.onload = function() { ASSETS.hud = removeBlackBG(hudImg); done(); };
+  hudImg.onerror = function() { err('hud.png'); };
 
   bgImg.src     = 'background.png';
   blocksImg.src = 'blocks.png';
@@ -172,12 +177,20 @@ function pickSpriteVariant(pieceId) {
 
 function renderTitleBanner() {
   var cv = document.getElementById('title-canvas');
-  if (!cv || !ASSETS.ready || !ASSETS.hud) return;
-  var sp  = HUD_SPRITES.title;
-  cv.width  = sp.sw;
-  cv.height = sp.sh;
-  var cx = cv.getContext('2d');
-  cx.drawImage(ASSETS.hud, sp.sx, sp.sy, sp.sw, sp.sh, 0, 0, sp.sw, sp.sh);
+  var fb = document.getElementById('title-text-fallback');
+  try {
+    if (!cv || !ASSETS.ready || !ASSETS.hud) throw new Error('no assets');
+    var sp  = HUD_SPRITES.title;
+    cv.width  = sp.sw;
+    cv.height = sp.sh;
+    var cx = cv.getContext('2d');
+    cx.drawImage(ASSETS.hud, sp.sx, sp.sy, sp.sw, sp.sh, 0, 0, sp.sw, sp.sh);
+    cv.style.display = '';
+    if (fb) fb.style.display = 'none';
+  } catch (e) {
+    if (cv) cv.style.display = 'none';
+    if (fb) fb.style.display = '';
+  }
 }
 
 // ════════════════════════════════════════════════════════════
@@ -327,7 +340,7 @@ const SoundFX = (() => {
 const BgMusic = (() => {
   const aud = new Audio('TowerMusic.mp3');
   aud.loop   = true;
-  aud.volume = 0.4;
+  aud.volume = 0.32;
   return {
     play()     { if (GS.soundOn) { aud.play().catch(function(){}); } },
     stop()     { aud.pause(); aud.currentTime = 0; },
@@ -465,9 +478,9 @@ function getPiecePixH(p) {
 //  - worldY=0 is ground. Positive = up.
 //  - toCanvasY / toWorldY convert between world and canvas pixels.
 
-const CONTACT_TOL     = 6;    // px gap allowed for "touching"
-const MIN_SUPPORT     = 0.18; // min overlap fraction for support
-const COM_TOLERANCE   = { easy: 0.75, normal: 0.55, hard: 0.38 };
+const CONTACT_TOL     = 10;   // px gap allowed for "touching"
+const MIN_SUPPORT     = 0.10; // min overlap fraction for support
+const COM_TOLERANCE   = { easy: 0.90, normal: 0.70, hard: 0.50 };
 
 function toCanvasY(worldY) {
   return GS.canvasH - 12 - (worldY - GS.cameraY);
