@@ -72,6 +72,15 @@ const GAMES = [
     path:  '../matchGame/index.html',
   },
 
+  {
+    id:    'builderGame',
+    title: 'בונה מגדלים',
+    desc:  'הנח גושים, איזן מגדלים ובנה עד השמיים — 3 מצבי משחק ואתגרים!',
+    icon:  '🏗️',
+    color: 'linear-gradient(135deg, #1a6ba0 0%, #2a9fd4 50%, #87ceeb 100%)',
+    path:  '../builderGame/index.html',
+  },
+
   // ── Add more games below ─────────────────────────────
   // {
   //   id:    'myNewGame',
