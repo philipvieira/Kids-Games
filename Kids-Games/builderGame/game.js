@@ -302,13 +302,12 @@ function refillQueue() {
 function spawnNextPiece() {
   refillQueue();
   GS.currentPiece = GS.pieceQueue.shift();
-  const p = GS.currentPiece;
-  p.x        = GS.canvasW / 2;
-  // Spawn just above the top of the visible canvas
-  // toWorldY(0) = world Y that corresponds to canvas y=0 (top edge)
-  // Place piece so its bottom is just at the top edge + a small margin
+  const p  = GS.currentPiece;
+  p.x      = GS.canvasW / 2;
   const ph = getPiecePixH(p);
-  p.worldY   = toWorldY(0) + ph / 2 + 6;
+  // Spawn above the visible canvas top so the piece falls into view.
+  // toWorldY(0) = world Y at the canvas top edge. Add ph+20 to go above it.
+  p.worldY   = toWorldY(0) + ph + 20;
   p.vy       = 0;
   p.onGround = false;
   p.wobble   = { ang: 0, vel: 0 };
@@ -354,12 +353,14 @@ function getPiecePixH(p) {
 function getGroundWorldY() { return 0; } // ground is world y=0, top is negative
 
 // Convert world Y to canvas Y
+// worldY=0 is ground (shown at canvas bottom). Higher worldY = higher on screen (lower canvasY).
+// cameraY = world Y currently shown at the bottom reference line (ground line).
 function toCanvasY(worldY) {
   return GS.canvasH - 12 - (worldY - GS.cameraY);
 }
-// Convert canvas Y to world Y
+// Convert canvas Y to world Y (inverse of toCanvasY)
 function toWorldY(canvasY) {
-  return GS.cameraY - (GS.canvasH - 12 - canvasY);
+  return GS.cameraY + (GS.canvasH - 12 - canvasY);
 }
 
 // Get the world-Y top surface at a given x (returns world Y of topmost surface)
@@ -578,16 +579,20 @@ function updateWobble() {
 // When tower grows, we smoothly scroll the camera up so the top is always visible.
 
 function updateCamera() {
-  const topWorldY          = GS.towerHeight * GS.cellPx;
-  const currentPieceTop    = GS.currentPiece ? GS.currentPiece.worldY + getPiecePixH(GS.currentPiece) / 2 : 0;
-  const highestPoint       = Math.max(topWorldY, currentPieceTop);
-  const desiredCameraY     = highestPoint + GS.canvasH * 0.68;
-  const minCamera          = GS.canvasH - 12;
+  const topWorldY       = GS.towerHeight * GS.cellPx;
+  const curPieceTop     = GS.currentPiece ? GS.currentPiece.worldY + getPiecePixH(GS.currentPiece) / 2 : 0;
+  const highestPoint    = Math.max(topWorldY, curPieceTop);
 
+  // We want the highest point to sit at ~25% from the top of the canvas.
+  // toCanvasY(highestPoint) = canvasH - 12 - (highestPoint - cameraY) = canvasH * 0.25
+  // => cameraY = highestPoint - canvasH * 0.75 + 12
+  const desiredCameraY  = highestPoint - GS.canvasH * 0.75 + 12;
+
+  // Only scroll up (increase cameraY), never scroll down below 0
   if (desiredCameraY > GS.cameraY) {
     GS.cameraY += (desiredCameraY - GS.cameraY) * 0.04;
   }
-  if (GS.cameraY < minCamera) GS.cameraY = minCamera;
+  if (GS.cameraY < 0) GS.cameraY = 0;
 }
 
 // ════════════════════════════════════════════════════════════
@@ -612,7 +617,7 @@ function resizeCanvas() {
   GS.canvasH    = availH;
   GS.cellPx     = Math.max(28, Math.min(52, Math.round(availW / 9)));
   // cameraY = canvasH - 12 means ground is at bottom of canvas in world coords
-  if (GS.cameraY === 0) GS.cameraY = GS.canvasH - 12;
+  if (GS.cameraY === 0) GS.cameraY = 0; // world Y 0 = ground, shown at canvas bottom
 }
 
 function drawBackground(ctx, W, H) {
