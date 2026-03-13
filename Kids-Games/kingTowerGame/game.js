@@ -62,8 +62,10 @@ const SPEED_RAMP   = 0.0012;  // added to swingSpeed per floor
 const AMP_RAMP     = 0.005;   // added to swingAmp per floor
 const MAX_SWING    = 0.92;    // max amplitude cap (rad)
 
-// Block: SQUARE, sized as fraction of canvas width
-const BLOCK_SIZE_FRAC = 0.22;   // block side = canvasW * this
+// Block: SQUARE, sized as fraction of the GAME area width
+// The game area is capped at MAX_GAME_W so blocks look the same on desktop and mobile.
+const MAX_GAME_W      = 420;    // px — game column never wider than this (matches phone)
+const BLOCK_SIZE_FRAC = 0.22;   // block side = gameW * this  (gameW ≤ MAX_GAME_W)
 const MIN_BLOCK_PX    = 16;     // minimum block width before game ends
 
 const TRIM_ON_IMPERFECT = true; // narrow block on imperfect landing (normal/hard)
@@ -127,11 +129,17 @@ const GS = {
   canvasW: 360,
   canvasH: 600,
 
-  // Block (always square)
+  // Game column (centred in canvas, capped at MAX_GAME_W)
+  // All game logic uses gameW/gameX; canvas edges are just letterbox.
+  gameW:   360,     // width of the active play area
+  gameX:   0,       // left offset of play area in canvas
+
+  // Block (always square) — DEFAULT only; resizeCanvas resets only if not mid-game
   blockSz:    80,   // side length in px (= blockW = blockH)
+  baseSz:     80,   // the full-size block (used to cap perfect restore)
 
   // Crane / pendulum
-  pivotX:  180,     // pivot is fixed at centre-top
+  pivotX:  180,     // pivot is fixed at game-column centre-top
   pivotY:  0,       // canvas Y — set to a few px below top
   ropeLen: 200,     // pixels from pivot to block centre
   angle:   0,       // current pendulum angle (radians, 0 = straight down)
@@ -172,8 +180,12 @@ const GS = {
 // World → canvas Y   (worldY=0 is ground at canvas bottom)
 function toCanvasY(wy) { return GS.canvasH - (wy - GS.cameraY); }
 
-// Current tower top in world coords
-function towerTopWorld() { return GS.floor * GS.blockSz; }
+// Current tower top in world coords — sum of each floor's own height
+function towerTopWorld() {
+  if (GS.floors.length === 0) return 0;
+  var top = GS.floors[GS.floors.length - 1];
+  return top.worldY + top.h;
+}
 
 // ─────────────────────────────────────────────────────────────
 function resetRuntime() {
@@ -189,6 +201,7 @@ function resetRuntime() {
   GS.targetCameraY  = 0;
   GS.swingT         = 0;
   GS.angle          = 0;
+  // blockSz / baseSz reset happens in startGame after resizeCanvas, not here.
   if (GS.loopId) { cancelAnimationFrame(GS.loopId); GS.loopId = null; }
 }
 
@@ -338,8 +351,8 @@ function handleDrop() {
   GS.dropX  = pos.x;
   // dropY = world coord of block CENTRE at release
   // canvas Y of block centre = pos.y
-  // world Y = canvasH - pos.y + cameraY
-  GS.dropY  = GS.canvasH - pos.y + GS.cameraY;
+  // world Y = (canvasH - pos.y) + cameraY
+  GS.dropY  = (GS.canvasH - pos.y) + GS.cameraY;
   GS.dropVY = 0;
 }
 
@@ -367,8 +380,9 @@ function landBlock() {
   // Tower top surface
   var towerCX, towerW;
   if (GS.floors.length === 0) {
-    towerCX = GS.canvasW / 2;
-    towerW  = GS.canvasW;
+    // Base floor spans the full game column
+    towerCX = GS.gameX + GS.gameW / 2;
+    towerW  = GS.gameW;
   } else {
     var top = GS.floors[GS.floors.length - 1];
     towerCX = top.x + top.w / 2;
@@ -391,7 +405,7 @@ function landBlock() {
   var newW, newX;
   if (GS.mode === 'free') {
     newW = GS.blockSz;
-    newX = Math.max(0, Math.min(GS.canvasW - newW, blockCX - newW / 2));
+    newX = Math.max(GS.gameX, Math.min(GS.gameX + GS.gameW - newW, blockCX - newW / 2));
   } else {
     newW = overlap;
     newX = overlapL;
@@ -404,7 +418,7 @@ function landBlock() {
 
   // Push floor (stored in world coords)
   var floorWorldY = towerTopWorld();
-  GS.floors.push({ x: newX, w: newW, worldY: floorWorldY, color: GS.blockColor });
+  GS.floors.push({ x: newX, w: newW, h: GS.blockSz, worldY: floorWorldY, color: GS.blockColor });
   GS.floor++;
 
   // Score + sounds + particles
@@ -425,10 +439,10 @@ function landBlock() {
     GS.blockSz = Math.max(Math.round(newW), MIN_BLOCK_PX);
     if (GS.blockSz <= MIN_BLOCK_PX) { endGame(); return; }
   } else if (isPerfect) {
-    // Reward: partial restore
+    // Reward: partial restore toward baseSz
     GS.blockSz = Math.min(
       GS.blockSz + Math.round(GS.blockSz * 0.15),
-      Math.round(GS.canvasW * BLOCK_SIZE_FRAC)
+      GS.baseSz
     );
   }
 
@@ -503,22 +517,39 @@ function resizeCanvas() {
   GS.canvasW = canvas.width;
   GS.canvasH = canvas.height;
 
-  // Block is SQUARE — side = fraction of canvas width
-  GS.blockSz = Math.max(MIN_BLOCK_PX, Math.round(GS.canvasW * BLOCK_SIZE_FRAC));
+  // ── Game column: cap width so desktop looks like mobile ──────
+  GS.gameW = Math.min(GS.canvasW, MAX_GAME_W);
+  GS.gameX = Math.round((GS.canvasW - GS.gameW) / 2);   // left edge of play area
 
-  // Crane pivot: centre-top, a few px below top edge
-  GS.pivotX = Math.round(GS.canvasW / 2);
+  // Block size: only reset if NOT in a running game (preserve trimming state)
+  if (!GS.running) {
+    GS.baseSz  = Math.max(MIN_BLOCK_PX, Math.round(GS.gameW * BLOCK_SIZE_FRAC));
+    GS.blockSz = GS.baseSz;
+  } else {
+    // Keep current blockSz (may be trimmed), just update baseSz cap
+    GS.baseSz = Math.max(MIN_BLOCK_PX, Math.round(GS.gameW * BLOCK_SIZE_FRAC));
+  }
+
+  // Crane pivot: centre of game column, a few px below top edge
+  GS.pivotX = GS.gameX + Math.round(GS.gameW / 2);
   GS.pivotY = 8;
 
-  // Rope length: enough to hang the block near the top third of the canvas
-  GS.ropeLen = Math.round(GS.canvasH * 0.28);
+  // Rope length: hangs block in top 30% of canvas, with clearance
+  GS.ropeLen = Math.round(GS.canvasH * 0.26);
 }
 
 // ── Camera ────────────────────────────────────────────────
 function updateCamera() {
   var ttw = towerTopWorld();
-  // Keep tower top at ~28% from canvas top
-  GS.targetCameraY = Math.max(0, ttw - (GS.canvasH * 0.72));
+  // The crane block hangs at canvas Y = pivotY + ropeLen + blockSz/2 (bottom of hanging block).
+  // We want tower top canvas Y to be at least CRANE_CLEARANCE px below that.
+  // toCanvasY(ttw) = canvasH - (ttw - cameraY)
+  // We want: canvasH - (ttw - cameraY) >= craneBottom + CRANE_CLEARANCE
+  // So: cameraY >= ttw - canvasH + craneBottom + CRANE_CLEARANCE
+  var CRANE_CLEARANCE = 30;  // px gap between crane block and tower top
+  var craneBottom = GS.pivotY + GS.ropeLen + GS.blockSz / 2 + CRANE_CLEARANCE;
+  var minCameraY  = ttw - GS.canvasH + craneBottom;
+  GS.targetCameraY = Math.max(0, minCameraY);
 }
 function applyCamera() {
   GS.cameraY += (GS.targetCameraY - GS.cameraY) * 0.07;
@@ -530,20 +561,24 @@ function renderFrame() {
   ctx.clearRect(0, 0, GS.canvasW, GS.canvasH);
 
   drawSky();
+  drawLetterbox();   // dark sides on desktop
   drawClouds();
   drawGround();
 
   for (var i = 0; i < GS.floors.length; i++) drawFloor(GS.floors[i]);
 
   if (GS.running) {
-    if (GS.dropping) drawFallingBlock();
-    else             drawCrane();
+    // Crane is ALWAYS drawn (arm + rope + pivot) whether swinging or dropping
+    drawCraneArm();
+    if (GS.dropping) {
+      drawFallingBlock();
+    } else {
+      drawHangingBlock();   // block on the rope
+      drawDropHint();
+    }
   }
 
   updateAndDrawParticles();
-
-  // Drop hint when not yet dropping
-  if (GS.running && !GS.dropping) drawDropHint();
 }
 
 // ── Sky ───────────────────────────────────────────────────
@@ -560,19 +595,21 @@ function drawSky() {
 function drawGround() {
   var gy = toCanvasY(0);  // canvas Y of ground surface
   if (gy > GS.canvasH) return;
+  // Only draw ground within the game column
   ctx.fillStyle = '#4ade80';
-  ctx.fillRect(0, gy, GS.canvasW, 16);
+  ctx.fillRect(GS.gameX, gy, GS.gameW, 16);
   ctx.fillStyle = '#166534';
-  ctx.fillRect(0, gy + 16, GS.canvasW, GS.canvasH);
+  ctx.fillRect(GS.gameX, gy + 16, GS.gameW, GS.canvasH);
 }
 
 // ── Tower floors ──────────────────────────────────────────
 function drawFloor(fl) {
-  var topCanvas = toCanvasY(fl.worldY + GS.blockSz);
+  var h         = fl.h;                          // this floor's height at time of landing
+  var topCanvas = toCanvasY(fl.worldY + h);
   var botCanvas = toCanvasY(fl.worldY);
   if (topCanvas > GS.canvasH || botCanvas < 0) return;
 
-  var x = fl.x, w = fl.w, h = GS.blockSz;
+  var x = fl.x, w = fl.w;
 
   // Shadow
   ctx.save();
@@ -603,21 +640,24 @@ function drawFloor(fl) {
   ctx.stroke();
 }
 
-// ── Crane (pivot + rope + swinging block) ─────────────────
-function drawCrane() {
-  var pos = blockCentreCanvas();
-  var bx  = pos.x;
-  var by  = pos.y;
-  var sz  = GS.blockSz;
+// ── Letterbox (desktop side panels) ──────────────────────
+function drawLetterbox() {
+  if (GS.gameX <= 0) return;
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.fillRect(0, 0, GS.gameX, GS.canvasH);
+  ctx.fillRect(GS.gameX + GS.gameW, 0, GS.gameX, GS.canvasH);
+}
 
-  // Crane arm: horizontal bar across top
+// ── Crane arm + rope (always drawn) ───────────────────────
+function drawCraneArm() {
   ctx.save();
+  // Horizontal crane arm
   ctx.strokeStyle = '#8b6914';
   ctx.lineWidth   = 6;
   ctx.lineCap     = 'round';
   ctx.beginPath();
-  ctx.moveTo(GS.canvasW * 0.15, GS.pivotY + 2);
-  ctx.lineTo(GS.canvasW * 0.85, GS.pivotY + 2);
+  ctx.moveTo(GS.gameX + GS.gameW * 0.08, GS.pivotY + 2);
+  ctx.lineTo(GS.gameX + GS.gameW * 0.92, GS.pivotY + 2);
   ctx.stroke();
 
   // Pivot circle
@@ -629,18 +669,34 @@ function drawCrane() {
   ctx.lineWidth   = 2;
   ctx.stroke();
 
-  // Rope
-  ctx.strokeStyle = '#d97706';
-  ctx.lineWidth   = 3;
-  ctx.lineCap     = 'round';
-  ctx.beginPath();
-  ctx.moveTo(GS.pivotX, GS.pivotY + 2);
-  ctx.lineTo(bx, by);
-  ctx.stroke();
+  if (!GS.dropping) {
+    // Rope to hanging block
+    var pos = blockCentreCanvas();
+    ctx.strokeStyle = '#d97706';
+    ctx.lineWidth   = 3;
+    ctx.lineCap     = 'round';
+    ctx.beginPath();
+    ctx.moveTo(GS.pivotX, GS.pivotY + 2);
+    ctx.lineTo(pos.x, pos.y);
+    ctx.stroke();
+  } else {
+    // Rope hangs straight down, stationary after release
+    ctx.strokeStyle = '#d97706';
+    ctx.lineWidth   = 3;
+    ctx.lineCap     = 'round';
+    ctx.beginPath();
+    ctx.moveTo(GS.pivotX, GS.pivotY + 2);
+    ctx.lineTo(GS.pivotX, GS.pivotY + 2 + GS.ropeLen * 0.5);
+    ctx.stroke();
+  }
   ctx.restore();
+}
 
-  // The hanging block (square)
-  drawColorBlock(bx - sz / 2, by - sz / 2, sz, sz, GS.blockColor);
+// ── Hanging block on the crane rope ───────────────────────
+function drawHangingBlock() {
+  var pos = blockCentreCanvas();
+  var sz  = GS.blockSz;
+  drawColorBlock(pos.x - sz / 2, pos.y - sz / 2, sz, sz, GS.blockColor);
 }
 
 // ── Falling block ─────────────────────────────────────────
@@ -798,14 +854,13 @@ function showFloatMsg(text) {
 
 function startGame() {
   initCanvas();      // ensure canvas reference exists
-  resizeCanvas();    // get correct dimensions
+  resizeCanvas();    // get correct dimensions (sets baseSz, blockSz since !running)
 
   resetRuntime();
 
   var cfg    = getCfg();
   GS.lives   = cfg.lives;
-  // Reset block size to default
-  GS.blockSz = Math.max(MIN_BLOCK_PX, Math.round(GS.canvasW * BLOCK_SIZE_FRAC));
+  // blockSz already set to baseSz by resizeCanvas (running=false at that point)
   colorIdx   = 0;
   perfectsThisGame = 0;
   GS.blockColor = BLOCK_COLORS[0];
