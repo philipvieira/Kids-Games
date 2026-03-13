@@ -76,70 +76,108 @@ const PU_DEFS = [
 
 const ASSETS = { bg: null, blocks: null, hud: null, ready: false };
 
-function loadAssets(callback) {
-  var loaded = 0, total = 3;
-  function onLoad() { if (++loaded >= total) { ASSETS.ready = true; callback(); } }
-  function onError(name) { console.warn('Asset failed to load: ' + name); onLoad(); }
-
-  ASSETS.bg     = new Image(); ASSETS.bg.onload     = onLoad; ASSETS.bg.onerror     = function(){ onError('background.png'); };
-  ASSETS.blocks = new Image(); ASSETS.blocks.onload = onLoad; ASSETS.blocks.onerror = function(){ onError('blocks.png'); };
-  ASSETS.hud    = new Image(); ASSETS.hud.onload    = onLoad; ASSETS.hud.onerror    = function(){ onError('hud.png'); };
-
-  ASSETS.bg.src     = 'background.png';
-  ASSETS.blocks.src = 'blocks.png';
-  ASSETS.hud.src    = 'hud.png';
+// blocks.png has a solid black background; this converts near-black
+// pixels to transparent so sprites render cleanly over any backdrop.
+function removeBlackBG(img) {
+  var c = document.createElement('canvas');
+  c.width  = img.width;
+  c.height = img.height;
+  var cx = c.getContext('2d');
+  cx.drawImage(img, 0, 0);
+  var data = cx.getImageData(0, 0, c.width, c.height);
+  var px = data.data;
+  for (var i = 0; i < px.length; i += 4) {
+    if (px[i] < 18 && px[i+1] < 18 && px[i+2] < 18) {
+      px[i+3] = 0;
+    }
+  }
+  cx.putImageData(data, 0, 0);
+  return c;
 }
 
-// Sprite regions in blocks.png (1024x683) — { sx, sy, sw, sh }
+function loadAssets(callback) {
+  var loaded = 0, total = 3;
+  function done() { if (++loaded >= total) { ASSETS.ready = true; callback(); } }
+  function err(name) { console.warn('Asset failed: ' + name); done(); }
+
+  var bgImg     = new Image();
+  var blocksImg = new Image();
+  var hudImg    = new Image();
+
+  bgImg.onload     = function() { ASSETS.bg = bgImg; done(); };
+  bgImg.onerror    = function() { err('background.png'); };
+  blocksImg.onload = function() { ASSETS.blocks = removeBlackBG(blocksImg); done(); };
+  blocksImg.onerror = function() { err('blocks.png'); };
+  hudImg.onload    = function() { ASSETS.hud = removeBlackBG(hudImg); done(); };
+  hudImg.onerror   = function() { err('hud.png'); };
+
+  bgImg.src     = 'background.png';
+  blocksImg.src = 'blocks.png';
+  hudImg.src    = 'hud.png';
+}
+
+/* Sprite regions in blocks.png (1024x683).
+   Each region is {sx, sy, sw, sh} in the source image.
+   Coordinates are tight around each sprite to avoid leftovers. */
 const BLOCK_SPRITES = {
   square: [
-    { sx: 42,  sy: 25, sw: 130, sh: 110 },
-    { sx: 190, sy: 25, sw: 130, sh: 110 },
-    { sx: 338, sy: 25, sw: 130, sh: 110 },
-    { sx: 485, sy: 25, sw: 130, sh: 110 },
-    { sx: 633, sy: 25, sw: 130, sh: 110 },
+    { sx: 40,  sy: 22,  sw: 126, sh: 106 },
+    { sx: 188, sy: 22,  sw: 126, sh: 106 },
+    { sx: 334, sy: 22,  sw: 126, sh: 106 },
+    { sx: 482, sy: 22,  sw: 126, sh: 106 },
+    { sx: 628, sy: 22,  sw: 126, sh: 106 },
   ],
   rect: [
-    { sx: 42,  sy: 155, sw: 160, sh: 65 },
-    { sx: 220, sy: 155, sw: 160, sh: 65 },
-    { sx: 398, sy: 155, sw: 160, sh: 65 },
-    { sx: 575, sy: 155, sw: 160, sh: 65 },
+    { sx: 40,  sy: 153, sw: 156, sh: 60 },
+    { sx: 218, sy: 153, sw: 156, sh: 60 },
+    { sx: 396, sy: 153, sw: 156, sh: 60 },
+    { sx: 572, sy: 153, sw: 156, sh: 60 },
   ],
-  triangle: [{ sx: 50,  sy: 258, sw: 140, sh: 118 }],
-  arch:     [{ sx: 215, sy: 260, sw: 145, sh: 100 }],
-  circle:   [{ sx: 375, sy: 260, sw: 112, sh: 112 }],
-  plank:    [{ sx: 525, sy: 272, sw: 250, sh: 45  }],
-  heavy:    [{ sx: 633, sy: 25,  sw: 130, sh: 110 }],
-  rainbow:  [{ sx: 32,  sy: 385, sw: 142, sh: 122 }],
-  bouncy:   [{ sx: 190, sy: 385, sw: 100, sh: 128 }],
-  sticky:   [{ sx: 308, sy: 385, sw: 112, sh: 122 }],
-  star:     [{ sx: 438, sy: 392, sw: 100, sh: 100 }],
+  triangle: [{ sx: 48,  sy: 252, sw: 138, sh: 118 }],
+  arch:     [{ sx: 213, sy: 262, sw: 148, sh: 96  }],
+  circle:   [{ sx: 373, sy: 256, sw: 114, sh: 114 }],
+  plank:    [{ sx: 522, sy: 274, sw: 252, sh: 42  }],
+  heavy:    [{ sx: 628, sy: 22,  sw: 126, sh: 106 }],
+  rainbow:  [{ sx: 30,  sy: 386, sw: 140, sh: 120 }],
+  bouncy:   [{ sx: 190, sy: 380, sw: 96,  sh: 132 }],
+  sticky:   [{ sx: 306, sy: 386, sw: 112, sh: 120 }],
+  star:     [{ sx: 436, sy: 393, sw: 98,  sh: 98  }],
 };
 
 // Power-up icon sprites in blocks.png
 const PU_SPRITES = {
-  slowtime:  { sx: 558, sy: 385, sw: 82,  sh: 112 },
-  undo:      { sx: 658, sy: 392, sw: 88,  sh: 88  },
-  giant:     { sx: 760, sy: 382, sw: 98,  sh: 100 },
-  stabilize: { sx: 438, sy: 392, sw: 100, sh: 100 },
+  slowtime:  { sx: 556, sy: 382, sw: 80,  sh: 118 },
+  undo:      { sx: 652, sy: 393, sw: 88,  sh: 86  },
+  giant:     { sx: 756, sy: 380, sw: 102, sh: 104 },
+  stabilize: { sx: 436, sy: 393, sw: 98,  sh: 98  },
 };
 
 // HUD sprite regions in hud.png (1024x683)
 const HUD_SPRITES = {
-  title:     { sx: 175, sy: 12,  sw: 672, sh: 148 },
-  score:     { sx: 15,  sy: 190, sw: 285, sh: 145 },
-  hearts:    { sx: 640, sy: 190, sw: 365, sh: 88  },
-  pauseBtn:  { sx: 612, sy: 330, sw: 98,  sh: 98  },
-  checkBtn:  { sx: 718, sy: 330, sw: 98,  sh: 98  },
-  menuBtn:   { sx: 822, sy: 330, sw: 98,  sh: 98  },
-  startBtn:  { sx: 580, sy: 495, sw: 280, sh: 70  },
-  progressBar: { sx: 255, sy: 505, sw: 280, sh: 42 },
+  title:       { sx: 165, sy: 5,   sw: 695, sh: 155 },
+  score:       { sx: 15,  sy: 190, sw: 285, sh: 145 },
+  hearts:      { sx: 640, sy: 190, sw: 365, sh: 88  },
+  pauseBtn:    { sx: 612, sy: 330, sw: 98,  sh: 98  },
+  checkBtn:    { sx: 718, sy: 330, sw: 98,  sh: 98  },
+  menuBtn:     { sx: 822, sy: 330, sw: 98,  sh: 98  },
+  startBtn:    { sx: 580, sy: 495, sw: 280, sh: 70  },
+  progressBar: { sx: 255, sy: 505, sw: 280, sh: 42  },
 };
 
 function pickSpriteVariant(pieceId) {
   var variants = BLOCK_SPRITES[pieceId];
   if (!variants || variants.length === 0) return null;
   return variants[Math.floor(Math.random() * variants.length)];
+}
+
+function renderTitleBanner() {
+  var cv = document.getElementById('title-canvas');
+  if (!cv || !ASSETS.ready || !ASSETS.hud) return;
+  var sp  = HUD_SPRITES.title;
+  cv.width  = sp.sw;
+  cv.height = sp.sh;
+  var cx = cv.getContext('2d');
+  cx.drawImage(ASSETS.hud, sp.sx, sp.sy, sp.sw, sp.sh, 0, 0, sp.sw, sp.sh);
 }
 
 // ════════════════════════════════════════════════════════════
@@ -870,23 +908,23 @@ function drawBackground(ctx, W, H) {
     var img = ASSETS.bg;
     var groundCanvasY = toCanvasY(0);
 
-    // Scale image so its width fills the canvas
-    var scale = W / img.width;
-    var imgH  = img.height * scale;
-    // Align the image ground line with the physics ground
-    var imgY  = groundCanvasY - imgH * BG_GROUND_FRAC;
+    var scale     = W / img.width;
+    var imgH      = img.height * scale;
+    var imgY      = groundCanvasY - imgH * BG_GROUND_FRAC;
+    var imgBottom = imgY + imgH;
 
-    ctx.drawImage(img, 0, imgY, W, imgH);
-
-    // Fill below with dirt if ground scrolls up and reveals bottom
-    if (groundCanvasY < H) {
-      ctx.fillStyle = '#7a5c1e';
-      ctx.fillRect(0, groundCanvasY, W, H - groundCanvasY + 20);
-    }
-    // Fill sky above if image doesn't reach top
+    // Fill sky above where the image doesn't reach
     if (imgY > 0) {
       ctx.fillStyle = '#7ec8e3';
       ctx.fillRect(0, 0, W, imgY);
+    }
+
+    ctx.drawImage(img, 0, imgY, W, imgH);
+
+    // Fill dirt only below where the image physically ends
+    if (imgBottom < H) {
+      ctx.fillStyle = '#7a5c1e';
+      ctx.fillRect(0, imgBottom, W, H - imgBottom);
     }
   } else {
     drawBackgroundFallback(ctx, W, H);
@@ -1846,6 +1884,7 @@ function restoreSettings() {
 
 function init() {
   loadAssets(function() {
+    renderTitleBanner();
     restoreSettings();
     wireMenu();
     wireGame();

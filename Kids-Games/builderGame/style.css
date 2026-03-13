@@ -58,17 +58,12 @@ html, body {
 }
 .btn-back-main:hover { background: rgba(255,255,255,0.32); }
 
-/* Title banner image — cropped from hud.png */
-.title-banner {
+/* Title banner canvas — drawn from the processed hud.png (black removed) */
+.title-banner-canvas {
   display: block;
   width: 100%; max-width: 380px;
   height: auto;
-  margin: 0 auto;
-  object-fit: contain;
-  object-position: top center;
-  /* Crop: only show top 148px of the 683px-tall hud.png (the banner region) */
-  clip-path: inset(1.5% 17% 78% 17%);
-  margin-top: -6px; margin-bottom: -60px;
+  margin: 0 auto 2px;
   animation: titleBounce 2.5s ease-in-out infinite;
   filter: drop-shadow(0 4px 12px rgba(0,0,0,0.35));
 }
@@ -430,11 +425,11 @@ html, body {
   .menu-box { padding: 14px 10px; }
   #side-panel { width: 58px; }
   .mc-btn { min-width: 52px; }
-  .title-banner { max-width: 280px; margin-bottom: -45px; }
+  .title-banner-canvas { max-width: 280px; }
 }
 @media (max-height: 500px) and (orientation: landscape) {
   #mobile-controls { padding: 4px 10px 5px; }
   .mc-btn { min-height: 40px; }
   #hud { padding: 3px 8px; }
-  .title-banner { max-width: 260px; margin-bottom: -40px; }
+  .title-banner-canvas { max-width: 260px; }
 }
