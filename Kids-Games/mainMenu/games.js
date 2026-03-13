@@ -63,6 +63,15 @@ const GAMES = [
     path:  '../colorCatcher/index.html',
   },
 
+  {
+    id:    'matchGame',
+    title: 'כוכבי קסם',
+    desc:  'החלף כוכבים וצור שורות של 3 ומעלה — 3 מצבי משחק, פצצות, קשתות ועוד!',
+    icon:  '✨',
+    color: 'linear-gradient(135deg, #1a1040 0%, #2d1b69 50%, #4c1d95 100%)',
+    path:  '../matchGame/index.html',
+  },
+
   // ── Add more games below ─────────────────────────────
   // {
   //   id:    'myNewGame',
