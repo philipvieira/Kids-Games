@@ -71,112 +71,107 @@ const PU_DEFS = [
 ];
 
 // ════════════════════════════════════════════════════════════
-// 1b. ASSET LOADER & SPRITE DEFINITIONS  (single assets.png)
+// 1b. ASSET LOADER & SPRITE DEFINITIONS
 // ════════════════════════════════════════════════════════════
 //
-// All sprites come from one sheet: assets.png (1024x682).
-// Coordinates auto-detected from pixel bounding boxes.
-// Sections: Block Assets, UI Pack, HUD Assets, Background Pack.
+// Three separate image files:
+//   background.png — full construction-scene background (1024×682, opaque)
+//   blocks.png     — block/special sprites, transparent background (1024×682)
+//   hud.png        — UI / HUD elements (1024×682, transparent background)
 
-const ASSETS = { sheet: null, ready: false };
-
-// assets.png is pre-processed at build time with white BG removed.
-// Runtime fallback removes any residual near-white pixels if needed.
-function removeWhiteBG(img) {
-  try {
-    var c = document.createElement('canvas');
-    c.width  = img.naturalWidth  || img.width;
-    c.height = img.naturalHeight || img.height;
-    var cx = c.getContext('2d');
-    cx.drawImage(img, 0, 0);
-    var d = cx.getImageData(0, 0, c.width, c.height);
-    var px = d.data;
-    for (var i = 0; i < px.length; i += 4) {
-      if (Math.min(px[i], px[i+1], px[i+2]) > 245) px[i+3] = 0;
-    }
-    cx.putImageData(d, 0, 0);
-    return c;
-  } catch (e) {
-    return img;
-  }
-}
+const ASSETS = { bg: null, blocks: null, hud: null, ready: false };
 
 function loadAssets(callback) {
-  var img = new Image();
-  img.onload = function() {
-    ASSETS.sheet = removeWhiteBG(img);
-    ASSETS.ready = true;
-    callback();
-  };
-  img.onerror = function() {
-    console.warn('Failed to load assets.png');
-    ASSETS.ready = true;
-    callback();
-  };
-  img.src = 'assets.png';
+  var loaded = 0, total = 3;
+  function onLoad() { if (++loaded === total) { ASSETS.ready = true; callback(); } }
+  function load(key, src) {
+    var img = new Image();
+    img.onload  = function() { ASSETS[key] = img; onLoad(); };
+    img.onerror = function() { console.warn('Failed to load', src); onLoad(); };
+    img.src = src;
+  }
+  load('bg',     'background.png');
+  load('blocks', 'blocks.png');
+  load('hud',    'hud.png');
 }
 
-/* ── BLOCK SPRITES in assets.png ─────────────────────────────
-   Coordinates verified by pixel-color sampling.
-   Row 1 (sy:28, sh:92 — stops before text labels at y≈120):
-     Square(blue), Rect(green), Triangle(yellow), Arch(red), Plank(orange), Circle(blue sphere)
-   Row 2 (sy≈125-130, sh:80):
-     Rainbow, Balloon(bouncy), Glue(sticky), Star, Base(heavy) */
+/* ── BLOCK SPRITES (blocks.png — transparent bg, 1024×682) ───────────
+   All coordinates verified by pixel-color sampling.
+
+   Row 1 (sy:36, sh:124): 5 smiley squares — yellow, red, green, blue, purple
+     Each is ~124px wide; divided evenly across x=176–795.
+   Row 2 (sy:160, sh:115): 4 rectangles — orange, pink, blue, purple
+     Each is ~163px wide across x=178–831.
+   Row 3 (sy:275): triangle (green), arch (blue U), circle (yellow smiley),
+     + 2 wooden planks stacked vertically at x=640+.
+   Row 4 (sy:390, sh:140): special blocks + power-up icons.
+   Row 5 (sy:520, sh:34): platform tiles.
+
+   To adjust a sprite, change its sx/sy/sw/sh values here. ─────────── */
 const BLOCK_SPRITES = {
-  square:   [{ sx: 375, sy: 28, sw: 135, sh: 92 }],  // blue rounded square
-  rect:     [{ sx: 510, sy: 28, sw: 140, sh: 92 }],  // green rectangle
-  triangle: [{ sx: 620, sy: 28, sw: 130, sh: 92 }],  // yellow triangle
-  arch:     [{ sx: 740, sy: 28, sw: 130, sh: 92 }],  // red arch
-  plank:    [{ sx: 840, sy: 28, sw: 120, sh: 92 }],  // orange wide plank
-  circle:   [{ sx: 935, sy: 28, sw:  89, sh: 92 }],  // dark blue sphere
-  heavy:    [{ sx: 900, sy: 125, sw: 124, sh: 80 }], // gray base = heavy block
-  rainbow:  [{ sx: 375, sy: 130, sw: 135, sh: 80 }], // rainbow stack
-  bouncy:   [{ sx: 510, sy: 125, sw: 110, sh: 80 }], // red balloon = bouncy
-  sticky:   [{ sx: 610, sy: 125, sw: 110, sh: 80 }], // purple glue = sticky
-  star:     [{ sx: 700, sy: 125, sw: 120, sh: 80 }], // yellow star
+  // Row 1: 5 square variants (random colour per piece)
+  square: [
+    { sx: 176, sy: 36, sw: 124, sh: 124 }, // yellow
+    { sx: 300, sy: 36, sw: 124, sh: 124 }, // red
+    { sx: 424, sy: 36, sw: 124, sh: 124 }, // green
+    { sx: 548, sy: 36, sw: 124, sh: 124 }, // blue
+    { sx: 672, sy: 36, sw: 123, sh: 124 }, // purple
+  ],
+  // Row 2: 4 rectangle variants
+  rect: [
+    { sx: 178, sy: 160, sw: 163, sh: 115 }, // orange
+    { sx: 341, sy: 160, sw: 163, sh: 115 }, // pink
+    { sx: 504, sy: 160, sw: 163, sh: 115 }, // blue
+    { sx: 667, sy: 160, sw: 164, sh: 115 }, // purple
+  ],
+  // Row 3: unique shapes
+  triangle: [{ sx: 170, sy: 275, sw: 119, sh: 140 }], // green triangle
+  arch:     [{ sx: 299, sy: 275, sw: 191, sh: 130 }], // blue arch (U-shape)
+  circle:   [{ sx: 490, sy: 275, sw: 150, sh: 140 }], // yellow smiley circle
+  plank:    [
+    { sx: 640, sy: 250, sw: 192, sh: 63  }, // thin upper plank
+    { sx: 640, sy: 320, sw: 273, sh: 70  }, // wide lower plank
+  ],
+  // Row 4: special blocks
+  rainbow: [{ sx: 164, sy: 390, sw: 109, sh: 140 }], // rainbow rect
+  bouncy:  [{ sx: 273, sy: 390, sw: 109, sh: 140 }], // red balloon
+  sticky:  [{ sx: 400, sy: 390, sw: 107, sh: 140 }], // blue glue cube
+  star:    [{ sx: 507, sy: 390, sw: 108, sh: 140 }], // yellow star
+  // Row 5: platform tiles used for heavy block
+  heavy: [
+    { sx: 160, sy: 520, sw: 216, sh: 34 }, // grass platform
+    { sx: 648, sy: 520, sw: 187, sh: 34 }, // stone platform
+  ],
 };
 
-/* ── POWER-UP ICON SPRITES ──────────────────────────────── */
+/* ── POWER-UP ICON SPRITES (blocks.png row 4 right cluster) ─────── */
 const PU_SPRITES = {
-  slowtime:  { sx: 850, sy: 470, sw: 50, sh: 59 },
-  undo:      { sx: 510, sy: 300, sw: 55, sh: 45 },
-  giant:     { sx: 800, sy: 130, sw: 70, sh: 70 },
-  stabilize: { sx: 790, sy: 470, sw: 60, sh: 60 },
+  slowtime:  { sx: 635, sy: 390, sw: 131, sh: 140 }, // hourglass
+  undo:      { sx: 766, sy: 390, sw: 131, sh: 140 }, // refresh circle
+  stabilize: { sx: 635, sy: 390, sw: 131, sh: 140 }, // reuse hourglass as fallback
+  giant:     { sx: 548, sy:  36, sw: 124, sh: 124 }, // big blue square
 };
 
-/* ── HUD SPRITES ────────────────────────────────────────── */
+/* ── HUD SPRITES (hud.png — transparent bg, 1024×682) ───────────────
+   Used to draw UI panels directly on canvas or as CSS backgrounds.
+   Title banner, score panel, level panel, lives, buttons. ─────────── */
 const HUD_SPRITES = {
-  scorePanel: { sx: 456, sy: 255, sw: 99,  sh: 40 },
-  levelPanel: { sx: 555, sy: 252, sw: 93,  sh: 44 },
-  livesPanel: { sx: 648, sy: 255, sw: 100, sh: 41 },
-  pauseBtn:   { sx: 455, sy: 304, sw: 55,  sh: 41 },
-  reloadBtn:  { sx: 510, sy: 300, sw: 55,  sh: 45 },
-  heart:      { sx: 628, sy: 260, sw: 32,  sh: 30 },
-  starSmall:  { sx: 460, sy: 340, sw: 30,  sh: 28 },
-  starMed:    { sx: 490, sy: 335, sw: 40,  sh: 34 },
-  starBig:    { sx: 530, sy: 330, sw: 45,  sh: 38 },
-  trophyGold: { sx: 655, sy: 320, sw: 55,  sh: 49 },
-  progressBar:{ sx: 815, sy: 340, sw: 190, sh: 25 },
+  titleBanner: { sx: 235, sy:  24, sw: 553, sh: 173 }, // "SIMPLE BUILDER!" banner
+  scorePanel:  { sx: 101, sy: 180, sw: 219, sh: 220 }, // score box (gold/blue)
+  levelPanel:  { sx: 310, sy: 180, sw: 310, sh: 403 }, // level + progress
+  livesPanel:  { sx: 600, sy: 180, sw: 370, sh: 120 }, // lives / hearts bar
+  pauseBtn:    { sx: 608, sy: 350, sw: 132, sh: 130 }, // orange pause (II)
+  checkBtn:    { sx: 720, sy: 350, sw: 140, sh: 130 }, // green checkmark
+  menuListBtn: { sx: 840, sy: 350, sw:  72, sh: 130 }, // blue menu list
+  progressBar: { sx: 160, sy: 505, sw: 300, sh:  55 }, // gold progress bar
+  startBtn:    { sx: 570, sy: 440, sw: 347, sh: 134 }, // green START button
+  menuHelmet:  { sx: 101, sy: 380, sw:  89, sh: 150 }, // helmet menu icon
+  reloadBtn:   { sx: 180, sy: 370, sw: 150, sh: 140 }, // reload/restart
 };
 
-/* ── BACKGROUND SPRITES ─────────────────────────────────── */
-// The scene is in the bottom-left of assets.png.
-// The "BACKGROUND PACK" green label is at y≈455-469; actual sky starts at y≈470.
-// Scene extends to y≈645, x≈15-365 (350×175 px).
-// BG_GROUND_FRAC: how far from top the visual ground line sits in the scene image.
-const BG_SPRITES = {
-  scene: { sx: 15, sy: 470, sw: 350, sh: 175 },
-  // Clouds are drawn in code (cloud sprites became transparent after white-bg removal)
-};
-
-/* ── UI BUTTON SPRITES ──────────────────────────────────── */
-const UI_SPRITES = {
-  playBtn:    { sx: 275, sy: 415, sw: 215, sh: 60 },
-  blueBtnDk:  { sx: 40,  sy: 60,  sw: 165, sh: 40 },
-  blueBtnLt:  { sx: 40,  sy: 105, sw: 165, sh: 37 },
-  cyanBtnLg:  { sx: 40,  sy: 145, sw: 240, sh: 40 },
-  greenBtnBg: { sx: 40,  sy: 190, sw: 170, sh: 55 },
-};
+// background.png: the visual grass/dirt boundary sits at ~82% from the top.
+// BG_GROUND_FRAC controls where this line maps onto the physics floor.
+var BG_GROUND_FRAC = 0.82;
 
 function pickSpriteVariant(pieceId) {
   var variants = BLOCK_SPRITES[pieceId];
@@ -902,76 +897,35 @@ function resizeCanvas() {
   if (GS.cameraY === 0) GS.cameraY = 0; // world Y 0 = ground, shown at canvas bottom
 }
 
-// The scene image's visual ground line sits at ~88% from its top.
-// Adjust so the scene ground aligns with the physics floor (worldY=0).
-var BG_GROUND_FRAC = 0.88;
-
 function drawBackground(ctx, W, H) {
   var groundCanvasY = toCanvasY(0);
 
-  // Full-canvas sky gradient (shows when tower scrolls scene off top)
-  var skyEnd = Math.min(groundCanvasY, H);
-  var sky = ctx.createLinearGradient(0, 0, 0, skyEnd);
+  // Sky gradient always fills the whole canvas first (visible above/beside image)
+  var sky = ctx.createLinearGradient(0, 0, 0, groundCanvasY > 0 ? groundCanvasY : H);
   sky.addColorStop(0, '#4aaee8');
   sky.addColorStop(1, '#82d0ff');
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, W, H);
 
-  if (ASSETS.ready && ASSETS.sheet) {
-    var sp    = BG_SPRITES.scene;          // {sx:15,sy:470,sw:350,sh:175}
-    var scale = W / sp.sw;
-    var imgH  = sp.sh * scale;
-    // Align scene so its ground (BG_GROUND_FRAC from top) = physics ground Y
+  if (ASSETS.ready && ASSETS.bg) {
+    var img   = ASSETS.bg;                  // background.png (1024×682, full scene)
+    var scale = W / img.naturalWidth;       // scale to fill canvas width
+    var imgH  = img.naturalHeight * scale;
+    // BG_GROUND_FRAC = 0.82: the grass/dirt boundary sits 82% down the image.
+    // Position the image so that boundary aligns with the physics floor.
     var imgY  = groundCanvasY - imgH * BG_GROUND_FRAC;
 
-    ctx.drawImage(ASSETS.sheet, sp.sx, sp.sy, sp.sw, sp.sh, 0, imgY, W, imgH);
-  }
+    ctx.drawImage(img, 0, imgY, W, imgH);
 
-  // Code-drawn parallax clouds (scroll slowly left, loop)
-  drawCloudsCode(ctx, W, groundCanvasY, performance.now());
-
-  // Solid ground fill below physics floor
-  if (groundCanvasY < H) {
-    ctx.fillStyle = '#4a8a0e';           // grass strip
-    ctx.fillRect(0, groundCanvasY - 3, W, 8);
-    ctx.fillStyle = '#6B4226';           // dirt below grass
-    ctx.fillRect(0, groundCanvasY + 5, W, H - groundCanvasY - 5);
-  }
-
-  if (!ASSETS.ready || !ASSETS.sheet) {
+    // Fill any remaining dirt below the image bottom
+    var imgBottom = imgY + imgH;
+    if (imgBottom < H) {
+      ctx.fillStyle = '#6B4226';
+      ctx.fillRect(0, imgBottom, W, H - imgBottom);
+    }
+  } else {
     drawBackgroundFallback(ctx, W, H);
   }
-}
-
-// Simple code-drawn clouds that scroll left across the sky
-function drawCloudsCode(ctx, W, groundCanvasY, ts) {
-  var t = ts * 0.000016;
-  // Cloud Y: position in upper 35% of sky above ground
-  var skyHeight = groundCanvasY;
-  var cy1 = skyHeight * 0.12;
-  var cy2 = skyHeight * 0.25;
-  var cy3 = skyHeight * 0.08;
-
-  ctx.save();
-  ctx.globalAlpha = 0.82;
-
-  function puffCloud(cx, cy, rx, ry) {
-    ctx.fillStyle = '#fff';
-    ctx.beginPath(); ctx.ellipse(cx,        cy,        rx,      ry,      0, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(cx - rx * 0.45, cy + ry * 0.1, rx * 0.65, ry * 0.7, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(cx + rx * 0.45, cy + ry * 0.1, rx * 0.60, ry * 0.65, 0, 0, Math.PI * 2); ctx.fill();
-  }
-
-  var cx1 = ((t * W * 0.18) % (W + 160)) - 80;
-  var cx2 = ((t * W * 0.11 + W * 0.55) % (W + 160)) - 80;
-  var cx3 = ((t * W * 0.22 + W * 0.25) % (W + 140)) - 70;
-
-  puffCloud(cx1, cy1, W * 0.09, W * 0.032);
-  puffCloud(cx2, cy2, W * 0.07, W * 0.025);
-  puffCloud(cx3, cy3, W * 0.06, W * 0.022);
-
-  ctx.globalAlpha = 1;
-  ctx.restore();
 }
 
 function drawBackgroundFallback(ctx, W, H) {
@@ -1030,8 +984,8 @@ function drawPiece(ctx, p, alpha) {
   ctx.globalAlpha = alpha !== undefined ? alpha : 1;
 
   var sp = p.spriteRegion;
-  if (ASSETS.ready && ASSETS.sheet && sp) {
-    ctx.drawImage(ASSETS.sheet, sp.sx, sp.sy, sp.sw, sp.sh, -pw / 2, -ph / 2, pw, ph);
+  if (ASSETS.ready && ASSETS.blocks && sp) {
+    ctx.drawImage(ASSETS.blocks, sp.sx, sp.sy, sp.sw, sp.sh, -pw / 2, -ph / 2, pw, ph);
   } else {
     drawPieceFallback(ctx, p, pw, ph);
   }
@@ -1153,8 +1107,8 @@ function drawGhostPiece(ctx) {
   ctx.globalAlpha = valid ? 0.25 : 0.35;
   ctx.translate(p.x, ghostCanvasY);
 
-  if (ASSETS.ready && ASSETS.sheet && sp && valid) {
-    ctx.drawImage(ASSETS.sheet, sp.sx, sp.sy, sp.sw, sp.sh, -pw / 2, -ph / 2, pw, ph);
+  if (ASSETS.ready && ASSETS.blocks && sp && valid) {
+    ctx.drawImage(ASSETS.blocks, sp.sx, sp.sy, sp.sw, sp.sh, -pw / 2, -ph / 2, pw, ph);
   } else {
     ctx.fillStyle   = valid ? (p.color !== 'rainbow' ? p.color : '#aaa') : '#ff3333';
     ctx.strokeStyle = valid ? '#fff' : '#ff0000';
@@ -1275,8 +1229,8 @@ function renderPreview() {
   ctx.save();
   ctx.translate(CW / 2, CH / 2);
 
-  if (ASSETS.ready && ASSETS.sheet && sp) {
-    ctx.drawImage(ASSETS.sheet, sp.sx, sp.sy, sp.sw, sp.sh, -pw / 2, -ph / 2, pw, ph);
+  if (ASSETS.ready && ASSETS.blocks && sp) {
+    ctx.drawImage(ASSETS.blocks, sp.sx, sp.sy, sp.sw, sp.sh, -pw / 2, -ph / 2, pw, ph);
   } else {
     ctx.fillStyle = 'rgba(0,0,0,0.18)';
     ctx.beginPath();
