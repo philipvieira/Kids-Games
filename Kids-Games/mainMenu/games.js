@@ -81,6 +81,15 @@ const GAMES = [
     path:  '../builderGame/index.html',
   },
 
+  {
+    id:    'kingTowerGame',
+    title: 'מלך המגדלים',
+    desc:  'הפל גושים בתזמון מושלם, בנה מגדל ענק וקבל בונוסי קומבו! 3 מצבים.',
+    icon:  '👑',
+    color: 'linear-gradient(135deg, #0d1b3e 0%, #1a4a8a 50%, #ffe14d 100%)',
+    path:  '../kingTowerGame/index.html',
+  },
+
   // ── Add more games below ─────────────────────────────
   // {
   //   id:    'myNewGame',
