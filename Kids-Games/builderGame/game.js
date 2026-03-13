@@ -227,6 +227,8 @@ const GS = {
 
   rootPiece:    null,  // first placed block — defines the tower
 
+  consecutivePerfects: 0,  // streak counter for perfect placements
+
   cameraY: 0,       // world-Y that maps to canvas ground line (scrolls as tower grows)
 
   lastTs:  0,
@@ -263,6 +265,7 @@ function resetRuntime() {
   GS.moveTimer     = 0;
   GS.cameraY       = 0;
   GS.rootPiece     = null;
+  GS.consecutivePerfects = 0;
   if (GS.loopId) { cancelAnimationFrame(GS.loopId); GS.loopId = null; }
 }
 
@@ -721,14 +724,40 @@ function applyPhysics() {
 
 // ── LANDING ───────────────────────────────────────────────
 
+const PERFECT_THRESHOLD = 0.08; // within 8% of piece width = perfect
+
 function landPiece(p, surfaceWorldY) {
   var ph = getPiecePixH(p);
   p.worldY   = surfaceWorldY + ph / 2;
   p.vy       = 0;
   p.onGround = true;
+  p.landedAt = performance.now();
   p.wobble   = p.wobble || { ang: 0, vel: 0.04 };
 
   var isFirst = GS.placedPieces.filter(function(q) { return q.onGround; }).length === 0;
+
+  // ── BLOCK TRIMMING (hard mode only) ───────────────────
+  // On hard difficulty, any overhanging portion of the piece is cut off.
+  // The piece is shrunk to only the region that overlaps with the surface below.
+  if (GS.diff === 'hard' && !isFirst) {
+    var pw   = getPiecePixW(p);
+    var trimL = p.x - pw / 2;
+    var trimR = p.x + pw / 2;
+    GS.placedPieces.forEach(function(q) {
+      if (!q.onGround) return;
+      if (Math.abs(pTop(q) - (p.worldY - getPiecePixH(p) / 2)) < CONTACT_TOL) {
+        trimL = Math.max(trimL, pLeft(q));
+        trimR = Math.min(trimR, pRight(q));
+      }
+    });
+    var newW = trimR - trimL;
+    if (newW > 4 && newW < pw) {
+      p.x   = (trimL + trimR) / 2;
+      p.def = Object.assign({}, p.def, { w: newW / GS.cellPx });
+      p.trimmed = true;
+      showFloatMsg('✂️ גזוז!');
+    }
+  }
 
   if (isFirst) {
     GS.rootPiece = p;
@@ -763,6 +792,34 @@ function landPiece(p, surfaceWorldY) {
   updateTowerHeight();
   SoundFX.place();
   spawnParticles(p.x, toCanvasY(surfaceWorldY), p.color !== 'rainbow' ? p.color : '#ffd700', 6);
+
+  // ── PERFECT PLACEMENT DETECTION ───────────────────────
+  // If the piece center is within PERFECT_THRESHOLD of the support surface center,
+  // award a streaking bonus and show a flash message.
+  if (!isFirst) {
+    var supportCenterX = p.x; // fallback
+    var bestOv = 0;
+    GS.placedPieces.forEach(function(q) {
+      if (!q.onGround || q === p) return;
+      if (Math.abs(pTop(q) - surfaceWorldY) < CONTACT_TOL) {
+        var ov = overlapLen(pLeft(p), pRight(p), pLeft(q), pRight(q));
+        if (ov > bestOv) { bestOv = ov; supportCenterX = q.x; }
+      }
+    });
+    var offset    = Math.abs(p.x - supportCenterX);
+    var isPerfect = offset < getPiecePixW(p) * PERFECT_THRESHOLD;
+    if (isPerfect) {
+      GS.consecutivePerfects++;
+      var perfBonus = GS.consecutivePerfects * 200;
+      GS.score += perfBonus;
+      var streak = GS.consecutivePerfects > 1 ? ' x' + GS.consecutivePerfects + '!' : '!';
+      showFloatMsg('⭐ מושלם! +' + perfBonus + streak);
+      SoundFX.bonus();
+      spawnParticles(p.x, toCanvasY(surfaceWorldY), '#ffe85a', 14);
+    } else {
+      GS.consecutivePerfects = 0;
+    }
+  }
 
   if (p.special === 'star') {
     GS.starBonus.push({ piece: p, startMs: performance.now() });
@@ -967,6 +1024,17 @@ function drawPiece(ctx, p, alpha) {
   ctx.save();
   ctx.translate(p.x, canvasY);
   ctx.rotate(p.wobble ? p.wobble.ang : 0);
+
+  // Landing pop: scale down from 1.08 → 1.0 over 200ms with white flash
+  if (p.landedAt) {
+    var age = performance.now() - p.landedAt;
+    if (age < 200) {
+      var t = age / 200;           // 0 (just landed) → 1 (done)
+      var sc = 1 + (1 - t) * 0.08; // 1.08 → 1.0
+      ctx.scale(sc, sc);
+    }
+  }
+
   ctx.globalAlpha = alpha !== undefined ? alpha : 1;
 
   var sp = p.spriteRegion;
@@ -975,6 +1043,23 @@ function drawPiece(ctx, p, alpha) {
   } else {
     drawPieceFallback(ctx, p, pw, ph);
   }
+
+  // White flash overlay fades out over first 200ms after landing
+  if (p.landedAt) {
+    var flashAge = performance.now() - p.landedAt;
+    if (flashAge < 200) {
+      var flashAlpha = (1 - flashAge / 200) * 0.45;
+      ctx.globalAlpha = flashAlpha;
+      ctx.fillStyle = '#ffffff';
+      var sp2 = p.spriteRegion;
+      if (sp2) {
+        ctx.fillRect(-pw / 2, -ph / 2, pw, ph);
+      } else {
+        drawShape(ctx, p.def.shape, pw, ph, 0, 0);
+      }
+    }
+  }
+
   ctx.restore();
 }
 
