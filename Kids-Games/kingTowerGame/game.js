@@ -176,6 +176,11 @@ const GS = {
   tumbling: false,
   tumble:   null,
 
+  // Tower sway (visual wobble when block lands off-centre)
+  swayAngle:  0,   // current sway offset in pixels (horizontal shift at top)
+  swayVel:    0,   // sway velocity
+  swayOrigin: 0,   // resting position (always 0)
+
   loopId: null,
 };
 
@@ -205,6 +210,8 @@ function resetRuntime() {
   GS.angle          = 0;
   GS.tumbling       = false;
   GS.tumble         = null;
+  GS.swayAngle      = 0;
+  GS.swayVel        = 0;
   // blockSz / baseSz reset happens in startGame after resizeCanvas, not here.
   if (GS.loopId) { cancelAnimationFrame(GS.loopId); GS.loopId = null; }
 }
@@ -426,10 +433,10 @@ function landBlock() {
   var cfg       = getCfg();
   var isPerfect = absOffset < GS.blockSz * cfg.perfectZone;
 
-  // ── Wobble threshold: if block overhangs > 40% of its width, it tumbles off ──
-  // The block's centre must be within towerW/2 + blockSz*0.4 of towerCX
-  var WOBBLE_FRAC  = 0.40;  // fraction of blockSz that can overhang before tipping
-  var maxOverhang  = GS.blockSz * WOBBLE_FRAC;
+  // ── Wobble threshold: if block overhangs > 65% of its width, it tumbles off ──
+  // Raising from 0.40 → 0.65 makes landing much more forgiving for kids
+  var WOBBLE_FRAC   = 0.65;
+  var maxOverhang   = GS.blockSz * WOBBLE_FRAC;
   var overhangLeft  = towerL - blockLeft;   // how much block extends left of tower (>0 = overhang)
   var overhangRight = blockRight - towerR;  // how much block extends right of tower (>0 = overhang)
 
@@ -477,6 +484,16 @@ function landBlock() {
   var floorWorldY = towerTopWorld();
   GS.floors.push({ x: newX, w: newW, h: GS.blockSz, worldY: floorWorldY, color: GS.blockColor });
   GS.floor++;
+
+  // Trigger tower sway proportional to how off-centre the block landed
+  // (kick the sway velocity in the direction of the lean)
+  if (!isPerfect && GS.floor > 1) {
+    var swayKick = (offset / GS.blockSz) * 18;  // max ~9px kick at full offset
+    GS.swayVel += swayKick;
+  } else if (isPerfect) {
+    // Perfect landing = slight counter-sway settling
+    GS.swayVel *= 0.4;
+  }
 
   scoreBlock(isPerfect, absOffset, towerW);
   spawnParticles(blockCX, toCanvasY(floorWorldY + GS.blockSz / 2), GS.blockColor, isPerfect ? 16 : 8);
@@ -598,6 +615,21 @@ function applyCamera(dt) {
   GS.cameraY += (GS.targetCameraY - GS.cameraY) * 0.07 * scale;
 }
 
+// ── Tower sway (spring-damper) ────────────────────────────
+// swayAngle is the horizontal pixel shift of the top of the tower.
+// It springs back to 0 like a pendulum.
+function applySway(dt) {
+  if (Math.abs(GS.swayAngle) < 0.1 && Math.abs(GS.swayVel) < 0.1) {
+    GS.swayAngle = 0; GS.swayVel = 0; return;
+  }
+  var scale   = dt / 16.667;
+  var SPRING  = 0.018;   // spring stiffness — pulls back to 0
+  var DAMPING = 0.88;    // damping — fraction of velocity kept each frame
+  GS.swayVel    += -GS.swayAngle * SPRING * scale;
+  GS.swayVel    *= Math.pow(DAMPING, scale);
+  GS.swayAngle  += GS.swayVel * scale;
+}
+
 // ── Main render ───────────────────────────────────────────
 function renderFrame() {
   if (!ctx) return;
@@ -608,7 +640,7 @@ function renderFrame() {
   drawClouds();
   drawGround();
 
-  for (var i = 0; i < GS.floors.length; i++) drawFloor(GS.floors[i]);
+  for (var i = 0; i < GS.floors.length; i++) drawFloor(GS.floors[i], i, GS.floors.length);
 
   if (GS.running) {
     // Crane is ALWAYS drawn (arm + rope + pivot) whether swinging or dropping
@@ -648,13 +680,16 @@ function drawGround() {
 }
 
 // ── Tower floors ──────────────────────────────────────────
-function drawFloor(fl) {
+function drawFloor(fl, floorIndex, totalFloors) {
   var h         = fl.h;                          // this floor's height at time of landing
   var topCanvas = toCanvasY(fl.worldY + h);
   var botCanvas = toCanvasY(fl.worldY);
   if (topCanvas > GS.canvasH || botCanvas < 0) return;
 
-  var x = fl.x, w = fl.w;
+  // Sway: floors higher up sway more (linear from 0 at base to full at top)
+  var swayFrac = totalFloors > 1 ? floorIndex / (totalFloors - 1) : 0;
+  var swayX    = GS.swayAngle * swayFrac;
+  var x = fl.x + swayX, w = fl.w;
 
   // Shadow
   ctx.save();
@@ -1206,6 +1241,7 @@ function mainLoop(timestamp) {
 
   if (!GS.paused) {
     applyCamera(dt);
+    applySway(dt);
     if (GS.tumbling)      updateTumble(dt);
     else if (GS.dropping) updateDrop(dt);
     else                  updateSwing(dt);
