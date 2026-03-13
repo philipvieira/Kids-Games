@@ -80,10 +80,39 @@ const PU_DEFS = [
 
 const ASSETS = { sheet: null, ready: false };
 
+// assets.png is pre-processed at build time with white BG removed.
+// Runtime fallback removes any residual near-white pixels if needed.
+function removeWhiteBG(img) {
+  try {
+    var c = document.createElement('canvas');
+    c.width  = img.naturalWidth  || img.width;
+    c.height = img.naturalHeight || img.height;
+    var cx = c.getContext('2d');
+    cx.drawImage(img, 0, 0);
+    var d = cx.getImageData(0, 0, c.width, c.height);
+    var px = d.data;
+    for (var i = 0; i < px.length; i += 4) {
+      if (Math.min(px[i], px[i+1], px[i+2]) > 245) px[i+3] = 0;
+    }
+    cx.putImageData(d, 0, 0);
+    return c;
+  } catch (e) {
+    return img;
+  }
+}
+
 function loadAssets(callback) {
   var img = new Image();
-  img.onload = function() { ASSETS.sheet = img; ASSETS.ready = true; callback(); };
-  img.onerror = function() { console.warn('Failed to load assets.png'); ASSETS.ready = true; callback(); };
+  img.onload = function() {
+    ASSETS.sheet = removeWhiteBG(img);
+    ASSETS.ready = true;
+    callback();
+  };
+  img.onerror = function() {
+    console.warn('Failed to load assets.png');
+    ASSETS.ready = true;
+    callback();
+  };
   img.src = 'assets.png';
 }
 
@@ -96,7 +125,7 @@ const BLOCK_SPRITES = {
   triangle: [{ sx: 635, sy: 44, sw: 75,  sh: 64 }],
   arch:     [{ sx: 710, sy: 44, sw: 75,  sh: 66 }],
   plank:    [{ sx: 793, sy: 50, sw: 132, sh: 58 }],
-  circle:   [{ sx: 930, sy: 40, sw: 70,  sh: 68 }],
+  circle:   [{ sx: 928, sy: 40, sw: 72,  sh: 68 }],
   heavy:    [{ sx: 920, sy: 135, sw: 85,  sh: 65 }],
   rainbow:  [{ sx: 470, sy: 130, sw: 75,  sh: 65 }],
   bouncy:   [{ sx: 548, sy: 128, sw: 67,  sh: 72 }],
