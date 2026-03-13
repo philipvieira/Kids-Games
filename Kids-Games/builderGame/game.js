@@ -76,11 +76,9 @@ const PU_DEFS = [
 
 const ASSETS = { bg: null, blocks: null, hud: null, ready: false };
 
-// PNGs are pre-processed at build time with transparent backgrounds.
-// This runtime fallback catches any residual dark fringe pixels and also
-// handles the case where pre-processing was skipped (e.g. fresh assets).
-// Returns a canvas with near-black pixels made transparent, or the raw
-// image if getImageData is blocked by CORS (file:// protocol).
+// PNGs are pre-processed at build time with transparent backgrounds
+// (pixels with max(R,G,B) < 10 set to alpha 0). This runtime fallback
+// catches residual dark fringe or handles fresh/unprocessed assets.
 function removeBlackBG(img) {
   try {
     var c = document.createElement('canvas');
@@ -91,11 +89,8 @@ function removeBlackBG(img) {
     var data = cx.getImageData(0, 0, c.width, c.height);
     var px = data.data;
     for (var i = 0; i < px.length; i += 4) {
-      var maxC = Math.max(px[i], px[i + 1], px[i + 2]);
-      if (maxC < 35) {
+      if (Math.max(px[i], px[i + 1], px[i + 2]) < 10) {
         px[i + 3] = 0;
-      } else if (maxC < 55) {
-        px[i + 3] = Math.round((maxC - 35) / 20 * px[i + 3]);
       }
     }
     cx.putImageData(data, 0, 0);
@@ -126,52 +121,56 @@ function loadAssets(callback) {
   hudImg.src    = 'hud.png';
 }
 
-/* Sprite regions in blocks.png (1024x683).
-   Each region is {sx, sy, sw, sh} in the source image.
-   Coordinates are tight around each sprite to avoid leftovers. */
+/* Sprite regions in blocks.png (1024x682).
+   Each region is { sx, sy, sw, sh } in the source image.
+   Coordinates auto-detected from pixel bounding boxes + 2px padding.
+   Use sprite-editor.html to visually fine-tune these values. */
 const BLOCK_SPRITES = {
   square: [
-    { sx: 40,  sy: 22,  sw: 126, sh: 106 },
-    { sx: 188, sy: 22,  sw: 126, sh: 106 },
-    { sx: 334, sy: 22,  sw: 126, sh: 106 },
-    { sx: 482, sy: 22,  sw: 126, sh: 106 },
-    { sx: 628, sy: 22,  sw: 126, sh: 106 },
+    { sx: 180, sy: 38, sw: 93, sh: 85 },
+    { sx: 283, sy: 38, sw: 96, sh: 85 },
+    { sx: 390, sy: 38, sw: 97, sh: 84 },
+    { sx: 498, sy: 38, sw: 98, sh: 85 },
+    { sx: 607, sy: 37, sw: 99, sh: 86 },
   ],
   rect: [
-    { sx: 40,  sy: 153, sw: 156, sh: 60 },
-    { sx: 218, sy: 153, sw: 156, sh: 60 },
-    { sx: 396, sy: 153, sw: 156, sh: 60 },
-    { sx: 572, sy: 153, sw: 156, sh: 60 },
+    { sx: 177, sy: 145, sw: 136, sh: 51 },
+    { sx: 322, sy: 145, sw: 140, sh: 52 },
+    { sx: 473, sy: 145, sw: 154, sh: 51 },
+    { sx: 639, sy: 145, sw: 159, sh: 52 },
   ],
-  triangle: [{ sx: 48,  sy: 252, sw: 138, sh: 118 }],
-  arch:     [{ sx: 213, sy: 262, sw: 148, sh: 96  }],
-  circle:   [{ sx: 373, sy: 256, sw: 114, sh: 114 }],
-  plank:    [{ sx: 522, sy: 274, sw: 252, sh: 42  }],
-  heavy:    [{ sx: 628, sy: 22,  sw: 126, sh: 106 }],
-  rainbow:  [{ sx: 30,  sy: 386, sw: 140, sh: 120 }],
-  bouncy:   [{ sx: 190, sy: 380, sw: 96,  sh: 132 }],
-  sticky:   [{ sx: 306, sy: 386, sw: 112, sh: 120 }],
-  star:     [{ sx: 436, sy: 393, sw: 98,  sh: 98  }],
+  triangle: [{ sx: 176, sy: 216, sw: 105, sh: 75 }],
+  arch:     [{ sx: 298, sy: 221, sw: 135, sh: 71 }],
+  circle:   [{ sx: 457, sy: 216, sw: 94,  sh: 90 }],
+  plank: [
+    { sx: 580, sy: 240, sw: 254, sh: 41 },
+    { sx: 579, sy: 286, sw: 218, sh: 29 },
+  ],
+  heavy:    [{ sx: 607, sy: 37, sw: 99, sh: 86 }],
+  rainbow:  [{ sx: 169, sy: 328, sw: 121, sh: 89 }],
+  bouncy:   [{ sx: 302, sy: 315, sw: 91,  sh: 117 }],
+  sticky:   [{ sx: 407, sy: 320, sw: 108, sh: 97 }],
+  star:     [{ sx: 518, sy: 308, sw: 114, sh: 109 }],
 };
 
-// Power-up icon sprites in blocks.png
+// Power-up icon sprites in blocks.png (auto-detected)
 const PU_SPRITES = {
-  slowtime:  { sx: 556, sy: 382, sw: 80,  sh: 118 },
-  undo:      { sx: 652, sy: 393, sw: 88,  sh: 86  },
-  giant:     { sx: 756, sy: 380, sw: 102, sh: 104 },
-  stabilize: { sx: 436, sy: 393, sw: 98,  sh: 98  },
+  slowtime:  { sx: 628, sy: 308, sw: 94,  sh: 115 },
+  undo:      { sx: 718, sy: 308, sw: 112, sh: 115 },
+  giant:     { sx: 826, sy: 334, sw: 87,  sh: 89  },
+  stabilize: { sx: 518, sy: 308, sw: 114, sh: 109 },
 };
 
-// HUD sprite regions in hud.png (1024x683)
+// HUD sprite regions in hud.png (1024x682) — auto-detected
 const HUD_SPRITES = {
-  title:       { sx: 165, sy: 5,   sw: 695, sh: 155 },
-  score:       { sx: 15,  sy: 190, sw: 285, sh: 145 },
-  hearts:      { sx: 640, sy: 190, sw: 365, sh: 88  },
-  pauseBtn:    { sx: 612, sy: 330, sw: 98,  sh: 98  },
-  checkBtn:    { sx: 718, sy: 330, sw: 98,  sh: 98  },
-  menuBtn:     { sx: 822, sy: 330, sw: 98,  sh: 98  },
-  startBtn:    { sx: 580, sy: 495, sw: 280, sh: 70  },
-  progressBar: { sx: 255, sy: 505, sw: 280, sh: 42  },
+  title:       { sx: 233, sy: 22,  sw: 557, sh: 150 },
+  score:       { sx: 100, sy: 168, sw: 252, sh: 154 },
+  hearts:      { sx: 553, sy: 168, sw: 369, sh: 124 },
+  pauseBtn:    { sx: 548, sy: 303, sw: 94,  sh: 109 },
+  checkBtn:    { sx: 638, sy: 303, sw: 94,  sh: 109 },
+  menuBtn:     { sx: 728, sy: 303, sw: 104, sh: 109 },
+  startBtn:    { sx: 558, sy: 458, sw: 274, sh: 74  },
+  progressBar: { sx: 318, sy: 458, sw: 254, sh: 54  },
 };
 
 function pickSpriteVariant(pieceId) {
