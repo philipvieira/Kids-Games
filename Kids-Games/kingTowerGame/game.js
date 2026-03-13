@@ -172,6 +172,10 @@ const GS = {
   // Particles
   particles: [],
 
+  // Tumble state (block tipping off edge)
+  tumbling: false,
+  tumble:   null,
+
   loopId: null,
 };
 
@@ -199,6 +203,8 @@ function resetRuntime() {
   GS.targetCameraY  = 0;
   GS.swingT         = 0;
   GS.angle          = 0;
+  GS.tumbling       = false;
+  GS.tumble         = null;
   // blockSz / baseSz reset happens in startGame after resizeCanvas, not here.
   if (GS.loopId) { cancelAnimationFrame(GS.loopId); GS.loopId = null; }
 }
@@ -305,7 +311,6 @@ function nextColor() {
 
 // Position of the hanging block centre (canvas coords) while swinging
 function blockCentreCanvas() {
-  // Block hangs at end of rope from pivot
   var bx = GS.pivotX + Math.sin(GS.angle) * GS.ropeLen;
   var by = GS.pivotY + Math.cos(GS.angle) * GS.ropeLen;
   return { x: bx, y: by };
@@ -314,12 +319,11 @@ function blockCentreCanvas() {
 // Initialise a new block at the crane
 function initBlock() {
   GS.dropping   = false;
+  GS.tumbling   = false;
   GS.dropVY     = 0;
   GS.blockColor = GS.nextColor || BLOCK_COLORS[0];
   GS.nextColor  = nextColor();
-  // Reset swing angle to one side so it starts moving
   GS.angle      = getCfg().swingAmp;
-  // swingT continues — don't reset, keeps motion smooth between blocks
 }
 
 function getCfg() { return DIFF_CFG[GS.diff]; }
@@ -332,25 +336,21 @@ function currentSwingAmp() {
   return Math.min(getCfg().swingAmp + GS.floor * AMP_RAMP, MAX_SWING);
 }
 
-// Advance pendulum one frame (dt in ms, target 60fps = 16.67ms per frame)
+// Advance pendulum one frame
 function updateSwing(dt) {
   var scale = dt / 16.667;
   GS.swingT += currentSwingSpeed() * scale;
   GS.angle   = Math.sin(GS.swingT) * currentSwingAmp();
 }
 
-// Release block — it falls straight down from release point
+// Release block — falls straight down from release point
 function handleDrop() {
-  if (!GS.running || GS.paused || GS.dropping) return;
+  if (!GS.running || GS.paused || GS.dropping || GS.tumbling) return;
   SoundFX.unlock();
   GS.dropping = true;
 
-  var pos = blockCentreCanvas();
-  // Store release X (centre) in canvas coords (stays fixed horizontally)
+  var pos   = blockCentreCanvas();
   GS.dropX  = pos.x;
-  // dropY = world coord of block CENTRE at release
-  // canvas Y of block centre = pos.y
-  // world Y = (canvasH - pos.y) + cameraY
   GS.dropY  = (GS.canvasH - pos.y) + GS.cameraY;
   GS.dropVY = 0;
 }
@@ -358,29 +358,48 @@ function handleDrop() {
 // ── Drop physics ──────────────────────────────────────────
 function updateDrop(dt) {
   var scale = dt / 16.667;
-  GS.dropVY  += 0.55 * scale;
-  GS.dropVY   = Math.min(GS.dropVY, 24);
-  GS.dropY   -= GS.dropVY * scale;   // world Y decreases as block falls
+  GS.dropVY += 0.55 * scale;
+  GS.dropVY  = Math.min(GS.dropVY, 24);
+  GS.dropY  -= GS.dropVY * scale;
 
-  // Bottom of falling block in world coords
   var blockBot = GS.dropY - GS.blockSz / 2;
-
   if (blockBot <= towerTopWorld()) {
     landBlock();
   }
 }
 
+// ── Tumble state — block tipping off the edge ─────────────
+// GS.tumble = { x, y(world), vx, vy, angle, avel, dir, color }
+function updateTumble(dt) {
+  if (!GS.tumble) return;
+  var scale = dt / 16.667;
+  var t = GS.tumble;
+
+  t.vy    -= 0.55 * scale;             // gravity (world Y decreases downward)
+  t.y     += t.vy * scale;
+  t.x     += t.vx * scale;
+  t.angle += t.avel * scale;
+
+  // Off screen / fallen below ground → life over
+  var canY = toCanvasY(t.y);
+  if (canY > GS.canvasH + GS.blockSz * 2) {
+    GS.tumble   = null;
+    GS.tumbling = false;
+    if (GS.lives <= 0) { endGame(); return; }
+    initBlock();
+    updateHUD();
+  }
+}
+
 // ── Land ──────────────────────────────────────────────────
 function landBlock() {
-  // Block left edge in canvas = dropX - blockSz/2
-  var blockLeft  = GS.dropX - GS.blockSz / 2;
-  var blockRight = GS.dropX + GS.blockSz / 2;
   var blockCX    = GS.dropX;
+  var blockLeft  = blockCX - GS.blockSz / 2;
+  var blockRight = blockCX + GS.blockSz / 2;
 
   // Tower top surface
-  var towerCX, towerW;
+  var towerCX, towerW, towerL, towerR;
   if (GS.floors.length === 0) {
-    // Base floor spans the full game column
     towerCX = GS.gameX + GS.gameW / 2;
     towerW  = GS.gameW;
   } else {
@@ -388,46 +407,86 @@ function landBlock() {
     towerCX = top.x + top.w / 2;
     towerW  = top.w;
   }
+  towerL = towerCX - towerW / 2;
+  towerR = towerCX + towerW / 2;
 
-  // Overlap between block and tower top
-  var towerL   = towerCX - towerW / 2;
-  var towerR   = towerCX + towerW / 2;
   var overlapL = Math.max(blockLeft, towerL);
   var overlapR = Math.min(blockRight, towerR);
   var overlap  = overlapR - overlapL;
 
+  // ── Complete miss ──────────────────────────────────────
   if (overlap <= 4) {
     missBlock();
     return;
   }
 
-  // New floor x/w — always full block size (no trimming)
-  var newW = GS.blockSz;
-  var newX = Math.max(GS.gameX, Math.min(GS.gameX + GS.gameW - newW, blockCX - newW / 2));
-
-  // Perfect?
-  var offset    = Math.abs(blockCX - towerCX);
+  // ── How far off-centre? ────────────────────────────────
+  var offset    = blockCX - towerCX;          // signed: + = right of centre
+  var absOffset = Math.abs(offset);
   var cfg       = getCfg();
-  var isPerfect = offset < GS.blockSz * cfg.perfectZone;
+  var isPerfect = absOffset < GS.blockSz * cfg.perfectZone;
 
-  // Push floor (stored in world coords)
+  // ── Wobble threshold: if block overhangs > 40% of its width, it tumbles off ──
+  // The block's centre must be within towerW/2 + blockSz*0.4 of towerCX
+  var WOBBLE_FRAC  = 0.40;  // fraction of blockSz that can overhang before tipping
+  var maxOverhang  = GS.blockSz * WOBBLE_FRAC;
+  var overhangLeft  = towerL - blockLeft;   // how much block extends left of tower (>0 = overhang)
+  var overhangRight = blockRight - towerR;  // how much block extends right of tower (>0 = overhang)
+
+  var tipDir = 0;  // 0 = land ok, -1 = tip left, 1 = tip right
+  if (overhangLeft  > maxOverhang) tipDir = -1;
+  if (overhangRight > maxOverhang) tipDir =  1;
+
+  if (tipDir !== 0) {
+    // Block tips off — animate tumble, lose a life
+    GS.dropping = false;
+    GS.tumbling = true;
+    GS.lives--;
+    GS.combo = 0;
+    SoundFX.miss();
+    showFloatMsg('כמעט! -לב 💔');
+
+    // Pivot: the block rotates around the edge of the tower it touched
+    var pivotX = tipDir === 1 ? towerR : towerL;
+    var blockLandY = towerTopWorld();           // world Y of tower top = block bottom when landing
+
+    // Initial tumble state
+    GS.tumble = {
+      x:     blockCX,
+      y:     blockLandY + GS.blockSz / 2,  // world Y of block centre
+      vx:    tipDir * 1.2,
+      vy:    0,
+      angle: 0,
+      avel:  tipDir * 0.08,               // angular velocity (rad/frame)
+      dir:   tipDir,
+      color: GS.blockColor,
+      pivotX: pivotX,
+    };
+
+    spawnParticles(blockCX, toCanvasY(blockLandY + GS.blockSz / 2), GS.blockColor, 8);
+    updateHUD();
+    // Don't call initBlock here — wait for tumble to finish (updateTumble handles it)
+    return;
+  }
+
+  // ── Normal landing ─────────────────────────────────────
+  // Block lands at exactly dropX, centred there, full size
+  var newX = Math.max(GS.gameX, Math.min(GS.gameX + GS.gameW - GS.blockSz, blockCX - GS.blockSz / 2));
+  var newW = GS.blockSz;
+
   var floorWorldY = towerTopWorld();
   GS.floors.push({ x: newX, w: newW, h: GS.blockSz, worldY: floorWorldY, color: GS.blockColor });
   GS.floor++;
 
-  // Score + sounds + particles
-  scoreBlock(isPerfect, offset, towerW);
-  var midY = toCanvasY(floorWorldY + GS.blockSz / 2);
-  spawnParticles(blockCX, midY, GS.blockColor, isPerfect ? 16 : 8);
+  scoreBlock(isPerfect, absOffset, towerW);
+  spawnParticles(blockCX, toCanvasY(floorWorldY + GS.blockSz / 2), GS.blockColor, isPerfect ? 16 : 8);
   if (isPerfect) {
     if (GS.combo > 1) SoundFX.combo(); else SoundFX.perfect();
   } else {
     SoundFX.land();
   }
 
-  // Camera
   updateCamera();
-
 
   if (isPerfect) perfectsThisGame++;
   if (GS.mode === 'challenge') checkChallengeGoal();
@@ -437,7 +496,7 @@ function landBlock() {
   updateHUD();
 }
 
-// ── Miss ──────────────────────────────────────────────────
+// ── Miss (complete miss — block never touched tower) ───────
 function missBlock() {
   GS.lives--;
   GS.combo = 0;
@@ -556,6 +615,8 @@ function renderFrame() {
     drawCraneArm();
     if (GS.dropping) {
       drawFallingBlock();
+    } else if (GS.tumbling) {
+      drawTumblingBlock();
     } else {
       drawHangingBlock();   // block on the rope
       drawDropHint();
@@ -686,10 +747,24 @@ function drawHangingBlock() {
 // ── Falling block ─────────────────────────────────────────
 function drawFallingBlock() {
   var sz  = GS.blockSz;
-  // dropY is world coord of block centre
-  var canY = toCanvasY(GS.dropY);         // canvas Y of block centre
+  var canY = toCanvasY(GS.dropY);
   var topY = canY - sz / 2;
   drawColorBlock(GS.dropX - sz / 2, topY, sz, sz, GS.blockColor);
+}
+
+// ── Tumbling block (tipping off edge) ─────────────────────
+function drawTumblingBlock() {
+  if (!GS.tumble) return;
+  var t   = GS.tumble;
+  var sz  = GS.blockSz;
+  var canY = toCanvasY(t.y);   // canvas Y of block centre
+
+  ctx.save();
+  ctx.translate(t.x, canY);
+  ctx.rotate(t.angle);
+  ctx.translate(-t.x, -canY);
+  drawColorBlock(t.x - sz / 2, canY - sz / 2, sz, sz, t.color);
+  ctx.restore();
 }
 
 // ── Coloured square block helper ──────────────────────────
@@ -1131,8 +1206,9 @@ function mainLoop(timestamp) {
 
   if (!GS.paused) {
     applyCamera(dt);
-    if (GS.dropping) updateDrop(dt);
-    else             updateSwing(dt);
+    if (GS.tumbling)      updateTumble(dt);
+    else if (GS.dropping) updateDrop(dt);
+    else                  updateSwing(dt);
   }
 
   renderFrame();
