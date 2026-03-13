@@ -65,7 +65,7 @@ const MAX_SWING    = 0.92;    // max amplitude cap (rad)
 // Block: SQUARE, sized as fraction of the GAME area width
 // The game area is capped at MAX_GAME_W so blocks look the same on desktop and mobile.
 const MAX_GAME_W      = 420;    // px — game column never wider than this (matches phone)
-const BLOCK_SIZE_FRAC = 0.38;   // block side = gameW * this  (larger, like the reference)
+const BLOCK_SIZE_FRAC = 0.22;   // block side = gameW * this
 const MIN_BLOCK_PX    = 16;     // minimum block width before game ends
 
 // ── Combo messages ─────────────────────────────────────────
@@ -388,11 +388,9 @@ function handleDrop() {
   SoundFX.unlock();
   GS.dropping = true;
 
-  // Block centre at release: hook X, hook Y + half block size
-  var blockCanvasX = GS.hookCanvasX;
-  var blockCanvasY = GS.hookCanvasY + GS.blockSz / 2;
-  GS.dropX  = blockCanvasX;
-  GS.dropY  = (GS.canvasH - blockCanvasY) + GS.cameraY;
+  // Block centre at release: hookX, hookY + half block size
+  GS.dropX  = GS.hookCanvasX;
+  GS.dropY  = (GS.canvasH - (GS.hookCanvasY + GS.blockSz / 2)) + GS.cameraY;
   GS.dropVY = 0;
 }
 
@@ -623,13 +621,12 @@ function resizeCanvas() {
     GS.baseSz = Math.max(MIN_BLOCK_PX, Math.round(GS.gameW * BLOCK_SIZE_FRAC));
   }
 
-  // Crane pivot: horizontally centred, vertically at bottom of cranebar image
+  // Crane pivot: horizontally centred, vertically at bottom of bar BEAM (not image bottom)
   GS.pivotX   = GS.gameX + Math.round(GS.gameW / 2);
-  // Bar height: tall and bold, roughly equal to block size
   var barH    = Math.max(50, Math.round(GS.blockSz * 0.90));
-  GS.pivotY   = barH;
+  GS.pivotY   = Math.round(barH * BAR_PIVOT_FRAC);
 
-  // Rope length: 1.8× block size — rope + pulley looks proportional to block
+  // Rope length: full drawn height of the rope image (block attaches at HOOK_TIP_FRAC of this)
   GS.ropeLen  = Math.round(GS.blockSz * 1.8);
 }
 
@@ -641,8 +638,9 @@ function updateCamera() {
   // toCanvasY(ttw) = canvasH - (ttw - cameraY)
   // We want: canvasH - (ttw - cameraY) >= craneBottom + CRANE_CLEARANCE
   // So: cameraY >= ttw - canvasH + craneBottom + CRANE_CLEARANCE
-  var CRANE_CLEARANCE = 140;  // px gap between crane block bottom and tower top
-  var craneBottom = GS.pivotY + GS.ropeLen + GS.blockSz / 2 + CRANE_CLEARANCE;
+  var CRANE_CLEARANCE = 140;
+  // Block bottom = pivotY + ropeLen*HOOK_TIP_FRAC + blockSz
+  var craneBottom = GS.pivotY + GS.ropeLen * HOOK_TIP_FRAC + GS.blockSz + CRANE_CLEARANCE;
   var minCameraY  = ttw - GS.canvasH + craneBottom;
   GS.targetCameraY = Math.max(0, minCameraY);
 }
@@ -779,27 +777,37 @@ function drawLetterbox() {
 
 // ── Crane system ─────────────────────────────────────────
 //
-// Strategy: draw bar, rope, AND block all in ONE pass.
-// The rope image + block are drawn in a SINGLE rotated ctx.save/restore,
-// so they are geometrically guaranteed to be connected — no offset drift.
+// Image anatomy (measured from the source PNGs):
 //
-//  Canvas layout (angle = 0, straight down):
+// cranebar.png  (wide, landscape):
+//   - Top transparent gap:  ~20% of image height
+//   - Bar beam occupies:    ~20%–55% of image height
+//   - Bottom of bar beam:   ~55% → this is where the rope must attach (pivotY)
+//   - Chain hooks hang below the bar down to ~90%
 //
-//    y = 0            ┌──────── cranebar ────────┐
-//    y = barH         pivot (rotation origin)
-//    y = barH+ropeLen   hook tip
-//    y = barH+ropeLen+blockSz  bottom of block
+// cranerope.png  (tall, portrait):
+//   - Rope strand starts at top (y=0) of image
+//   - Hook ring bottom ends at ~88% of image height
+//   - ~12% transparent padding at the bottom
+//   → Block top must attach at 88% of the drawn ropeLen, not 100%
 //
-// The block top is drawn at (−blockSz/2, ropeLen) in rotated space,
-// so it starts exactly where the hook ends.
+// All three (bar, rope, block) are drawn in ONE rotated ctx so they
+// are geometrically guaranteed to stay connected.
 //
-// GS.hookX / GS.hookY are written here and used by handleDrop to
-// capture the drop position.
+// Fractions used:
+//   BAR_PIVOT_FRAC  = 0.55  (pivot = bottom of bar beam inside bar image)
+//   HOOK_TIP_FRAC   = 0.88  (hook ring bottom inside rope image)
+
+var BAR_PIVOT_FRAC = 0.55;   // pivot Y as fraction of drawn bar height
+var HOOK_TIP_FRAC  = 0.88;   // hook tip Y as fraction of drawn rope height
+
 function drawCraneArm() {
-  // Bar height matches resizeCanvas calculation
-  var barH    = Math.max(50, Math.round(GS.blockSz * 0.90));
-  var ropeLen = GS.ropeLen;
   var sz      = GS.blockSz;
+  var ropeLen = GS.ropeLen;
+
+  // Bar: draw tall enough so the beam looks bold.
+  // barH is the full image height; the beam itself sits at ~55% of that.
+  var barH = Math.max(50, Math.round(GS.blockSz * 0.90));
 
   // ── 1. Crane bar (fixed, full game width) ──────────────
   if (craneBarReady) {
@@ -809,23 +817,26 @@ function drawCraneArm() {
     ctx.fillRect(GS.gameX, 0, GS.gameW, barH);
   }
 
-  // Pivot = centre of bar, bottom edge
+  // Pivot = where the rope connects to the bar (bottom of the beam, not image bottom)
   var pivX = GS.gameX + Math.round(GS.gameW / 2);
-  var pivY = barH;
+  var pivY = Math.round(barH * BAR_PIVOT_FRAC);
 
   GS.pivotX    = pivX;
   GS.pivotY    = pivY;
   GS.ropeDrawH = ropeLen;
 
+  // Hook tip in canvas coords (for handleDrop)
+  var hookTipLocal = ropeLen * HOOK_TIP_FRAC;   // Y in rotated local space
+
   // ── 2. Rope + block in one rotated context ─────────────
-  // Rope image width = 1.5× block so the pulley/hook looks bold and proportional
+  // Rope image width ≈ 1.5× block so the pulley/hook is bold and visible
   var ropeW = Math.round(sz * 1.5);
 
   ctx.save();
   ctx.translate(pivX, pivY);
   ctx.rotate(GS.angle);
 
-  // Rope image: centred on x=0, from y=0 to y=ropeLen
+  // Rope image: y=0 → top of rope (attaches to bar), y=ropeLen → full image height
   if (craneRopeReady) {
     ctx.drawImage(craneRopeImg, -ropeW / 2, 0, ropeW, ropeLen);
   } else {
@@ -833,15 +844,15 @@ function drawCraneArm() {
     ctx.lineWidth   = 8;
     ctx.beginPath();
     ctx.moveTo(0, 0);
-    ctx.lineTo(0, ropeLen);
+    ctx.lineTo(0, hookTipLocal);
     ctx.stroke();
     ctx.fillStyle = '#9ca3af';
     ctx.beginPath();
-    ctx.arc(0, ropeLen, 14, 0, Math.PI * 2);
+    ctx.arc(0, hookTipLocal, 12, 0, Math.PI * 2);
     ctx.fill();
   }
 
-  // Block: drawn directly below rope, top at y=ropeLen
+  // Block top sits exactly at hookTipLocal (bottom of hook ring)
   if (!GS.dropping && !GS.tumbling) {
     var scale = 1;
     if (GS.perfectBounce > 0) {
@@ -851,33 +862,32 @@ function drawCraneArm() {
     // Shadow
     ctx.globalAlpha = 0.22;
     ctx.fillStyle   = '#000';
-    ctx.fillRect(-sz / 2 + 4, ropeLen + 4, sz, sz);
+    ctx.fillRect(-sz / 2 + 4, hookTipLocal + 4, sz, sz);
     ctx.globalAlpha = 1;
 
-    // Scale around block centre if needed
     if (scale !== 1) {
       ctx.save();
-      ctx.translate(0, ropeLen + sz / 2);
+      ctx.translate(0, hookTipLocal + sz / 2);
       ctx.scale(scale, scale);
-      ctx.translate(0, -(ropeLen + sz / 2));
+      ctx.translate(0, -(hookTipLocal + sz / 2));
     }
     var img = (GS.blockSprite !== null && GS.blockSprite >= 0) ? blockImgs[GS.blockSprite] : null;
     if (img && img.complete && img.naturalWidth > 0) {
-      ctx.drawImage(img, -sz / 2, ropeLen, sz, sz);
+      ctx.drawImage(img, -sz / 2, hookTipLocal, sz, sz);
     } else {
       ctx.fillStyle = GS.blockColor || '#60a5fa';
-      ctx.fillRect(-sz / 2, ropeLen, sz, sz);
+      ctx.fillRect(-sz / 2, hookTipLocal, sz, sz);
     }
     if (scale !== 1) ctx.restore();
 
     // Drop hint arrow below block
-    var ay = ropeLen + sz + 14;
+    var ay = hookTipLocal + sz + 14;
     ctx.globalAlpha = 0.70 + 0.30 * Math.sin(Date.now() / 300);
     ctx.fillStyle   = '#ffe14d';
     ctx.beginPath();
-    ctx.moveTo(0,    ay);
-    ctx.lineTo(-10,  ay - 16);
-    ctx.lineTo(10,   ay - 16);
+    ctx.moveTo(0,   ay);
+    ctx.lineTo(-10, ay - 16);
+    ctx.lineTo(10,  ay - 16);
     ctx.closePath();
     ctx.fill();
     ctx.globalAlpha = 1;
@@ -885,10 +895,9 @@ function drawCraneArm() {
 
   ctx.restore();
 
-  // ── Write hook world position for handleDrop ───────────
-  // Hook tip in canvas space (used when player taps to drop)
-  GS.hookCanvasX = pivX + Math.sin(GS.angle) * ropeLen;
-  GS.hookCanvasY = pivY + Math.cos(GS.angle) * ropeLen;
+  // Write hook canvas position for handleDrop
+  GS.hookCanvasX = pivX + Math.sin(GS.angle) * hookTipLocal;
+  GS.hookCanvasY = pivY + Math.cos(GS.angle) * hookTipLocal;
 }
 
 // Block centre in canvas coords (used by handleDrop and legacy refs)
