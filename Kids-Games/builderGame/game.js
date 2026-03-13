@@ -182,6 +182,7 @@ const SoundFX = (() => {
     if (c.state === 'suspended') c.resume();
     unlocked = true;
     document.getElementById('audio-banner').style.display = 'none';
+    BgMusic.play();
   }
   function tone(freq, dur, type, vol) {
     if (!GS.soundOn) return;
@@ -205,6 +206,19 @@ const SoundFX = (() => {
     pu()      { [700,900,1100].forEach(function(f,i){ setTimeout(function(){ tone(f,0.09,'sine',0.13); }, i*70); }); },
     bonus()   { tone(880, 0.07, 'sine', 0.1); },
     rotate()  { tone(600, 0.05, 'sine', 0.1); },
+  };
+})();
+
+const BgMusic = (() => {
+  const aud = new Audio('TowerMusic.mp3');
+  aud.loop   = true;
+  aud.volume = 0.4;
+  return {
+    play()     { if (GS.soundOn) { aud.play().catch(function(){}); } },
+    stop()     { aud.pause(); aud.currentTime = 0; },
+    pause()    { aud.pause(); },
+    resume()   { if (GS.soundOn) { aud.play().catch(function(){}); } },
+    toggle(on) { on ? this.resume() : this.pause(); },
   };
 })();
 
@@ -1099,6 +1113,7 @@ function startGame() {
 
   GS.running = true;
   GS.lastTs  = performance.now();
+  BgMusic.play();
 
   // Start loop
   GS.loopId = requestAnimationFrame(mainLoop);
@@ -1107,18 +1122,21 @@ function startGame() {
 function pauseGame() {
   if (!GS.running) return;
   GS.paused = true;
+  BgMusic.pause();
   document.getElementById('overlay-pause').style.display = 'flex';
 }
 
 function resumeGame() {
   GS.paused = false;
   GS.lastTs = performance.now();
+  BgMusic.resume();
   document.getElementById('overlay-pause').style.display = 'none';
 }
 
 function endGame(reason) {
   if (!GS.running) return;
   GS.running = false;
+  BgMusic.stop();
 
   SoundFX.fail();
   const modeLabel = { tower:'מגדל', challenge:'אתגר', free:'חופשי' }[GS.mode];
@@ -1138,6 +1156,7 @@ function endGame(reason) {
 function showLevelWin() {
   if (!GS.running) return;
   GS.running = false;
+  BgMusic.stop();
   SoundFX.success();
   spawnParticles(GS.canvasW / 2, GS.canvasH / 3, '#ffe85a', 30);
   spawnParticles(GS.canvasW / 3, GS.canvasH / 2, '#4ade80', 20);
@@ -1160,6 +1179,7 @@ function showLevelWin() {
 function goToMenu() {
   GS.running = false;
   if (GS.loopId) { cancelAnimationFrame(GS.loopId); GS.loopId = null; }
+  BgMusic.stop();
   document.getElementById('overlay-pause').style.display    = 'none';
   document.getElementById('overlay-levelwin').style.display  = 'none';
   document.getElementById('overlay-gameover').style.display = 'none';
@@ -1308,6 +1328,7 @@ function wireMenu() {
     const btn = document.getElementById('btn-sound');
     btn.textContent = GS.soundOn ? '🔊 פועל' : '🔇 כבוי';
     btn.classList.toggle('on', GS.soundOn);
+    BgMusic.toggle(GS.soundOn);
   });
 }
 
