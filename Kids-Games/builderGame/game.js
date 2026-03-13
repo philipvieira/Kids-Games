@@ -57,9 +57,9 @@ const PIECE_COLORS = {
 const CELL = 40; // base grid unit in pixels (scaled later)
 
 const DIFF_CFG = {
-  easy:   { fallSpd: 1.8, gravity: 0.18, wobble: 0.012, collapseRatio: 0.5,  puChance: 0.2, hintDelay: 3000 },
-  normal: { fallSpd: 2.8, gravity: 0.26, wobble: 0.02,  collapseRatio: 0.35, puChance: 0.12, hintDelay: 5000 },
-  hard:   { fallSpd: 4.0, gravity: 0.36, wobble: 0.03,  collapseRatio: 0.25, puChance: 0.06, hintDelay: 9000 },
+  easy:   { fallSpd: 1.8, gravity: 0.18, wobble: 0.018, collapseRatio: 0.5,  puChance: 0.2,  hintDelay: 3000, tipAngle: 0.22 },
+  normal: { fallSpd: 2.8, gravity: 0.26, wobble: 0.030, collapseRatio: 0.35, puChance: 0.12, hintDelay: 5000, tipAngle: 0.17 },
+  hard:   { fallSpd: 4.0, gravity: 0.36, wobble: 0.045, collapseRatio: 0.25, puChance: 0.06, hintDelay: 9000, tipAngle: 0.12 },
 };
 
 // Power-up definitions
@@ -131,6 +131,8 @@ const GS = {
   particles:    [],
   floatMsgTimer: 0,
 
+  cameraY: 0,       // world-Y that maps to canvas ground line (scrolls as tower grows)
+
   lastTs:  0,
   loopId:  null,
 
@@ -163,6 +165,7 @@ function resetRuntime() {
   GS.moveRight     = false;
   GS.softDrop      = false;
   GS.moveTimer     = 0;
+  GS.cameraY       = 0;   // will be set properly in resizeCanvas after screen is active
   if (GS.loopId) { cancelAnimationFrame(GS.loopId); GS.loopId = null; }
 }
 
@@ -251,18 +254,17 @@ function getPieceDef(id) {
 
 function makeQueuePiece(id) {
   const def = getPieceDef(id);
-  const cs  = GS.cellPx;
   return {
-    id:      id,
-    def:     def,
-    x:       GS.canvasW / 2,         // center x
-    y:       -def.h * cs,            // above canvas
-    vy:      0,
-    angle:   0,                       // 0, 90, 180, 270
-    color:   getPieceColor(id),
-    special: def.special || null,
-    wobble:  { ang: 0, vel: 0 },
-    settled: false,
+    id:       id,
+    def:      def,
+    x:        GS.canvasW / 2,
+    worldY:   0,           // will be set in spawnNextPiece
+    vy:       0,
+    angle:    0,           // 0, 90, 180, 270
+    color:    getPieceColor(id),
+    special:  def.special || null,
+    wobble:   { ang: 0, vel: 0 },
+    onGround: false,
   };
 }
 
@@ -300,13 +302,14 @@ function refillQueue() {
 function spawnNextPiece() {
   refillQueue();
   GS.currentPiece = GS.pieceQueue.shift();
-  // Re-center and position at top
   const p = GS.currentPiece;
-  p.x  = GS.canvasW / 2;
-  p.y  = -(getPiecePixH(p) + 4);
-  p.vy = 0;
-  p.settled = false;
-  p.wobble  = { ang: 0, vel: 0 };
+  p.x        = GS.canvasW / 2;
+  // Spawn above top of visible canvas area (worldY of top canvas edge)
+  const topWorldY = toWorldY(0);  // world Y that corresponds to canvas top
+  p.worldY   = topWorldY + getPiecePixH(p) + 8;
+  p.vy       = 0;
+  p.onGround = false;
+  p.wobble   = { ang: 0, vel: 0 };
   refillQueue();
   renderPreview();
 }
@@ -331,117 +334,154 @@ function getPiecePixH(p) {
 // ════════════════════════════════════════════════════════════
 // 7. PHYSICS WORLD
 // ════════════════════════════════════════════════════════════
+//
+// BALANCE SYSTEM:
+//  - Each piece has a world-y coordinate (worldY). The camera scrolls
+//    so that worldY = canvasY - cameraOffsetY.
+//  - When a piece lands, we compute the CENTER-OF-MASS of the entire
+//    stack (x-weighted). If it leans too far, pieces on the outside
+//    gradually tip and fall.
+//  - "Overlap fraction" determines landing: only pieces that overlap
+//    at least 25% of their width actually support the new piece.
+//    Off-edge landings get an immediate strong lean impulse.
+//
+// CAMERA:
+//  - GS.cameraY follows the top of the tower so the player can
+//    always see where they are building.
 
-// Simplified physics:
-//  - Each placed piece is an AABB rectangle settled on the stack.
-//  - The "stack top surface" is the highest y of all placed pieces.
-//  - The current (falling) piece has gravity + velocity.
-//  - When it lands (collision with placed pieces or floor), it settles.
-//  - All placed pieces get a gentle wobble applied as a rotation oscillation.
-//  - Collapse = if towerHeight shrinks by > collapseRatio after a bad landing.
+function getGroundWorldY() { return 0; } // ground is world y=0, top is negative
 
-function getGroundY() { return GS.canvasH - 12; }
+// Convert world Y to canvas Y
+function toCanvasY(worldY) {
+  return GS.canvasH - 12 - (worldY - GS.cameraY);
+}
+// Convert canvas Y to world Y
+function toWorldY(canvasY) {
+  return GS.cameraY - (GS.canvasH - 12 - canvasY);
+}
 
-// Get the top surface Y at a given x position (for landing detection)
-function getTopSurfaceAt(px, pw) {
-  const groundY = getGroundY();
-  let topY = groundY;
+// Get the world-Y top surface at a given x (returns world Y of topmost surface)
+function getTopSurfaceWorldAt(px, pw) {
+  let topWorldY = 0; // ground
   for (let i = 0; i < GS.placedPieces.length; i++) {
     const pl = GS.placedPieces[i];
-    if (!pl.settled) continue;
-    // Check x overlap
-    const plLeft  = pl.x - getPiecePixW(pl) / 2 - 6;
-    const plRight = pl.x + getPiecePixW(pl) / 2 + 6;
+    if (!pl.onGround) continue;
+    const plLeft  = pl.x - getPiecePixW(pl) / 2;
+    const plRight = pl.x + getPiecePixW(pl) / 2;
     const pLeft   = px - pw / 2;
     const pRight  = px + pw / 2;
-    if (pRight > plLeft && pLeft < plRight) {
-      const plTop = pl.y - getPiecePixH(pl) / 2;
-      if (plTop < topY) topY = plTop;
+    // Require meaningful overlap (>20% of new piece width) to count as support
+    const overlap = Math.min(pRight, plRight) - Math.max(pLeft, plLeft);
+    if (overlap > pw * 0.20) {
+      const plTopWorldY = pl.worldY + getPiecePixH(pl) / 2;
+      if (plTopWorldY > topWorldY) topWorldY = plTopWorldY;
     }
   }
-  return topY;
+  return topWorldY;
+}
+
+// Compute how far off-center the new piece is from its supporting surface
+// Returns a signed overhang ratio: 0=perfect center, ±1=completely off edge
+function computeOverhangRatio(px, pw) {
+  // Find the support piece(s) under us
+  let totalSupportWidth = 0;
+  let weightedCenterX   = 0;
+  for (let i = 0; i < GS.placedPieces.length; i++) {
+    const pl = GS.placedPieces[i];
+    if (!pl.onGround) continue;
+    const plLeft  = pl.x - getPiecePixW(pl) / 2;
+    const plRight = pl.x + getPiecePixW(pl) / 2;
+    const pLeft   = px - pw / 2;
+    const pRight  = px + pw / 2;
+    const overlap = Math.min(pRight, plRight) - Math.max(pLeft, plLeft);
+    if (overlap > 0) {
+      const overlapCenter = (Math.max(pLeft, plLeft) + Math.min(pRight, plRight)) / 2;
+      totalSupportWidth += overlap;
+      weightedCenterX   += overlapCenter * overlap;
+    }
+  }
+  if (totalSupportWidth < 2) return 0; // on ground, no overhang
+  const supportCenter = weightedCenterX / totalSupportWidth;
+  const halfPw = pw / 2;
+  return (px - supportCenter) / halfPw; // signed: positive = leaning right
 }
 
 function applyPhysics(dt) {
-  const p   = GS.currentPiece;
-  if (!p || p.settled) return;
+  const p = GS.currentPiece;
+  if (!p || p.onGround) return;
 
   const cfg = DIFF_CFG[GS.diff];
   const slowFactor = (GS.activePU && GS.activePU.def.id === 'slowtime') ? 0.35 : 1;
   const frozen     = GS.activePU && GS.activePU.def.id === 'magichold';
+  if (frozen) return;
 
-  if (frozen) return; // piece hovers
-
-  // Normalize dt to 60fps (dt in ms, target=16.67ms)
   const dtNorm = Math.min(dt / 16.67, 2.5);
-
   let grav = cfg.gravity * slowFactor * dtNorm;
   if (GS.softDrop) grav *= 3;
 
-  p.vy += grav;
-  p.y  += p.vy * dtNorm;
+  p.vy     += grav;
+  p.worldY -= p.vy * dtNorm;  // worldY=0 is ground; positive=UP; falling → worldY decreases
 
   const pw = getPiecePixW(p);
-  const ph = getPiecePixH(p);
+  if (p.x - pw/2 < 4)              p.x = pw/2 + 4;
+  if (p.x + pw/2 > GS.canvasW - 4) p.x = GS.canvasW - pw/2 - 4;
 
-  // Horizontal bounds
-  const halfW = pw / 2;
-  if (p.x - halfW < 4) { p.x = halfW + 4; }
-  if (p.x + halfW > GS.canvasW - 4) { p.x = GS.canvasW - halfW - 4; }
+  const ph            = getPiecePixH(p);
+  const pieceBottom   = p.worldY - ph / 2;
+  const surfaceWorldY = getTopSurfaceWorldAt(p.x, pw);
 
-  // Landing detection
-  const surfaceY  = getTopSurfaceAt(p.x, pw);
-  const pieceBottom = p.y + ph / 2;
-
-  if (pieceBottom >= surfaceY) {
-    landPiece(p, surfaceY);
+  if (pieceBottom <= surfaceWorldY) {
+    landPiece(p, surfaceWorldY);
   }
 }
 
-function landPiece(p, surfaceY) {
+function landPiece(p, surfaceWorldY) {
   const ph = getPiecePixH(p);
-  p.y      = surfaceY - ph / 2;
-  p.vy     = 0;
-  p.settled = true;
+  p.worldY   = surfaceWorldY + ph / 2;
+  p.vy       = 0;
+  p.onGround = true;
 
-  // Sticky: glue to nearby — no extra wobble
-  const wobbleFactor = (p.special === 'sticky') ? 0.1 : 1.0;
-  const bounceAdd    = (p.special === 'bouncy') ? 0.06 : 0.02;
+  // Compute overhang — how badly off-center is this piece?
+  const pw       = getPiecePixW(p);
+  const overhang = computeOverhangRatio(p.x, pw);  // -1..+1
+  const cfg      = DIFF_CFG[GS.diff];
 
-  // Add wobble impulse to all placed pieces
-  const cfg = DIFF_CFG[GS.diff];
+  // Wobble impulse proportional to overhang + difficulty + mass effect
+  const mass         = p.def.mass || 1;
+  const wobbleMult   = (p.special === 'sticky') ? 0.15 : 1.0;
+  const bounceAdd    = (p.special === 'bouncy')  ? 0.12 : 0.04;
+  const overhangImpulse = overhang * cfg.wobble * 12 * wobbleMult;
+
+  // Apply impulse to ALL settled pieces (heavier piece = stronger impulse)
   GS.placedPieces.forEach(function(pl) {
-    if (!pl.settled) return;
-    pl.wobble.vel += (Math.random() - 0.5) * cfg.wobble * wobbleFactor * 2;
+    if (!pl.onGround || !pl.wobble) return;
+    const randomJitter = (Math.random() - 0.5) * cfg.wobble * 0.8 * wobbleMult;
+    pl.wobble.vel += (overhangImpulse + randomJitter) * mass * 0.5;
   });
-  p.wobble.vel = bounceAdd * (Math.random() - 0.5);
+  p.wobble     = p.wobble || { ang: 0, vel: 0 };
+  p.wobble.vel = bounceAdd * (overhang * 2 + (Math.random() - 0.5));
 
   GS.placedPieces.push(p);
   GS.blocksPlaced++;
 
-  // Update tower height
   updateTowerHeight();
   SoundFX.place();
+  spawnParticles(p.x, toCanvasY(surfaceWorldY), p.color !== 'rainbow' ? p.color : '#ffd700', 6);
 
-  // Star piece bonus timer
   if (p.special === 'star') {
     GS.starBonus.push({ piece: p, startMs: performance.now() });
     SoundFX.bonus();
   }
-
-  // Rainbow: bonus points
   if (p.special === 'rainbow') {
     GS.score += 300;
     SoundFX.bonus();
     showFloatMsg('🌈 בונוס! +300');
   }
 
-  // Score from height
   GS.score += Math.round(GS.towerHeight * 10 + GS.blocksPlaced * 5);
   updateScoreUI();
 
-  // Power-up chance
-  if (Math.random() < DIFF_CFG[GS.diff].puChance) {
+  if (Math.random() < cfg.puChance) {
     const pu = PU_DEFS[Math.floor(Math.random() * PU_DEFS.length)];
     GS.puQueue.push(pu);
     showFloatMsg(pu.icon + ' ' + pu.name + '!');
@@ -449,73 +489,117 @@ function landPiece(p, surfaceY) {
     if (!GS.activePU) activateNextPU();
   }
 
-  // Check collapse
   if (GS.mode !== 'free') checkCollapse();
-
-  // Check goal
   checkGoal();
-
-  // Undo power-up: save snapshot (only keep last piece ref)
   GS._lastPiecePlaced = p;
-
-  // Spawn next
   spawnNextPiece();
 }
 
 function updateTowerHeight() {
-  let minY = GS.canvasH;
+  let maxWorldY = 0;
   GS.placedPieces.forEach(function(pl) {
-    if (!pl.settled) return;
-    const top = pl.y - getPiecePixH(pl) / 2;
-    if (top < minY) minY = top;
+    if (!pl.onGround) return;
+    const top = pl.worldY + getPiecePixH(pl) / 2;
+    if (top > maxWorldY) maxWorldY = top;
   });
-  const groundY = getGroundY();
-  GS.towerHeight = Math.max(0, Math.round((groundY - minY) / GS.cellPx * 10) / 10);
+  GS.towerHeight = Math.round(maxWorldY / GS.cellPx * 10) / 10;
   if (GS.towerHeight > GS.maxHeight) GS.maxHeight = GS.towerHeight;
-
-  // Update goal fill
   if (GS.mode === 'challenge') updateGoalUI();
 }
 
 function checkCollapse() {
   if (GS.placedPieces.length < 2) return;
-  const cfg      = DIFF_CFG[GS.diff];
-  const groundY  = getGroundY();
-  // Count how many pieces fell below screen + margin
-  const fallen   = GS.placedPieces.filter(function(pl){ return pl.y > groundY + 40; }).length;
-  const total    = GS.placedPieces.length;
+  const cfg    = DIFF_CFG[GS.diff];
+  // Count pieces that have fallen off world (worldY very negative or x way out of bounds)
+  const fallen = GS.placedPieces.filter(function(pl) {
+    return pl.worldY < -GS.canvasH * 2 || pl.x < -100 || pl.x > GS.canvasW + 100;
+  }).length;
+  const total  = GS.placedPieces.length;
   if (total > 3 && fallen / total >= cfg.collapseRatio) {
     endGame('collapse');
   }
 }
 
+// ── BALANCE / WOBBLE UPDATE ──────────────────────────────────
+// Physics model:
+//  - Each settled piece has a wobble spring (ang, vel).
+//  - If a piece's angle exceeds a tipping threshold, it falls off the stack.
+//  - "Falling off" means it gets a horizontal velocity and gravity pulls it down.
+//  - The stability depends on difficulty — easy is very forgiving, hard is strict.
+
 function updateWobble(dt) {
-  const cfg = DIFF_CFG[GS.diff];
-  const stab = GS.activePU && GS.activePU.def.id === 'stabilize';
-  const dampFactor = stab ? 0.96 : 0.88;
+  const cfg        = DIFF_CFG[GS.diff];
+  const stab       = GS.activePU && GS.activePU.def.id === 'stabilize';
+  const damping    = stab ? 0.94 : 0.82;   // lower = faster damping (less wobble on easy)
+  const spring     = 0.06;
+  const tipAngle   = stab ? 99 : cfg.tipAngle;  // radians before tipping
+  const dtNorm     = Math.min(dt / 16.67, 2.5);
 
   GS.placedPieces.forEach(function(pl) {
-    if (!pl.wobble) { pl.wobble = { ang: 0, vel: 0 }; return; }
-    pl.wobble.vel += -pl.wobble.ang * 0.08;
-    pl.wobble.vel *= dampFactor;
-    pl.wobble.ang += pl.wobble.vel;
-    // Clamp wobble
-    const maxAng = stab ? 0.05 : 0.3;
-    if (Math.abs(pl.wobble.ang) > maxAng) {
-      pl.wobble.ang = Math.sign(pl.wobble.ang) * maxAng;
-      pl.wobble.vel *= -0.4;
+    if (!pl.wobble) { pl.wobble = { ang: 0, vel: 0 }; }
+    if (!pl.onGround) return;
+
+    // Spring back to 0
+    pl.wobble.vel += -pl.wobble.ang * spring;
+    pl.wobble.vel *= damping;
+    pl.wobble.ang += pl.wobble.vel * dtNorm;
+
+    // Hard cap on visual wobble angle (no more than 0.25 rad = ~14°)
+    const maxVisual = 0.25;
+    if (Math.abs(pl.wobble.ang) > maxVisual) {
+      pl.wobble.ang = Math.sign(pl.wobble.ang) * maxVisual;
     }
 
-    // If extremely unstable, piece "falls off"
-    if (Math.abs(pl.wobble.ang) > 0.28 && !stab) {
-      pl.vy = (pl.vy || 0) + 0.4;
-      pl.y  += pl.vy;
-      pl.x  += pl.wobble.ang * 8;
+    // Check if piece has tipped past the threshold → it falls
+    if (Math.abs(pl.wobble.ang) >= tipAngle && !stab) {
+      // Piece tips over: remove from settled, give it fall velocity
+      pl.onGround  = false;
+      pl.vy        = 0;
+      pl.fallVx    = pl.wobble.ang * 4;  // horizontal drift direction
+      pl.fallVy    = 0;
     }
   });
 
-  // Remove pieces that have fallen far
-  GS.placedPieces = GS.placedPieces.filter(function(pl) { return pl.y < GS.canvasH + 150; });
+  // Apply gravity to falling pieces and remove ones far off screen
+  GS.placedPieces.forEach(function(pl) {
+    if (pl.onGround) return;
+    pl.fallVy = (pl.fallVy || 0) + 0.35 * Math.min(dt / 16.67, 2.5);
+    pl.worldY -= pl.fallVy;   // falling down
+    pl.x      += (pl.fallVx || 0);
+  });
+
+  // Remove pieces that have fallen far off world
+  GS.placedPieces = GS.placedPieces.filter(function(pl) {
+    return pl.worldY > -GS.canvasH * 3 && pl.x > -200 && pl.x < GS.canvasW + 200;
+  });
+}
+
+// ── CAMERA ───────────────────────────────────────────────────
+// GS.cameraY = the world-Y that maps to the "ground line" on canvas.
+// When tower grows, we smoothly scroll the camera up so the top is always visible.
+
+function updateCamera(dt) {
+  // Target: keep some space above the top of the tower
+  const marginCells = 3.5;
+  const topWorldY   = GS.towerHeight * GS.cellPx;
+  const currentPieceWorldY = GS.currentPiece ? GS.currentPiece.worldY + getPiecePixH(GS.currentPiece) : 0;
+  const highestPoint = Math.max(topWorldY, currentPieceWorldY);
+
+  // Desired camera: highestPoint should sit at canvasH * 0.25 from top
+  // toCanvasY(highestPoint) = GS.canvasH - 12 - (highestPoint - GS.cameraY) = canvasH * 0.25
+  // => GS.cameraY = highestPoint - (canvasH * 0.25 - (canvasH - 12))
+  //               = highestPoint + canvasH * 0.75 - 12
+  const desiredCameraY = highestPoint + GS.canvasH * 0.68;
+  const dtNorm = Math.min(dt / 16.67, 2.5);
+  const lerpSpeed = 0.04 * dtNorm;
+
+  // Never scroll below ground (camera should at minimum show ground level)
+  const minCamera = GS.canvasH - 12;  // so ground stays at bottom
+
+  if (desiredCameraY > GS.cameraY) {
+    GS.cameraY += (desiredCameraY - GS.cameraY) * lerpSpeed;
+  }
+  if (GS.cameraY < minCamera) GS.cameraY = minCamera;
 }
 
 // ════════════════════════════════════════════════════════════
@@ -539,6 +623,8 @@ function resizeCanvas() {
   GS.canvasW    = availW;
   GS.canvasH    = availH;
   GS.cellPx     = Math.max(28, Math.min(52, Math.round(availW / 9)));
+  // cameraY = canvasH - 12 means ground is at bottom of canvas in world coords
+  if (GS.cameraY === 0) GS.cameraY = GS.canvasH - 12;
 }
 
 function drawBackground(ctx, W, H) {
@@ -552,11 +638,12 @@ function drawBackground(ctx, W, H) {
   // Clouds
   drawClouds(ctx, W, H);
 
-  // Ground
+  // Ground — always at bottom of canvas
+  const groundCanvasY = H - 12;
   ctx.fillStyle = '#8B6914';
-  ctx.fillRect(0, H - 12, W, 12);
+  ctx.fillRect(0, groundCanvasY, W, 12);
   ctx.fillStyle = '#6B8E23';
-  ctx.fillRect(0, H - 16, W, 6);
+  ctx.fillRect(0, groundCanvasY - 4, W, 6);
 }
 
 // Simple animated clouds (position based on time so they drift)
@@ -584,28 +671,28 @@ function drawClouds(ctx, W, H) {
 }
 
 function drawGroundLine(ctx, W, H) {
-  // Target height line (challenge mode)
   if (GS.mode === 'challenge') {
     const lvl = CHALLENGE_LEVELS[GS.challengeLevel];
     if (lvl && (lvl.type === 'height' || lvl.type === 'holdup' || lvl.type === 'mixgoal' || lvl.type === 'starontop')) {
-      const targetCells = lvl.target;
-      const targetY = getGroundY() - targetCells * GS.cellPx;
-      if (targetY > 20) {
+      const targetWorldY = lvl.target * GS.cellPx;
+      const targetCanvasY = toCanvasY(targetWorldY);
+      if (targetCanvasY > 10 && targetCanvasY < H - 20) {
         ctx.save();
         ctx.setLineDash([8, 5]);
         ctx.strokeStyle = 'rgba(255,220,50,0.8)';
         ctx.lineWidth   = 2;
         ctx.beginPath();
-        ctx.moveTo(0, targetY);
-        ctx.lineTo(W, targetY);
+        ctx.moveTo(0, targetCanvasY);
+        ctx.lineTo(W, targetCanvasY);
         ctx.stroke();
         ctx.setLineDash([]);
         ctx.restore();
 
-        // Position label
         const lbl = document.getElementById('target-label');
         lbl.style.display = 'block';
-        lbl.style.top = (targetY + 2) + 'px';
+        lbl.style.top = (targetCanvasY + 2) + 'px';
+      } else {
+        document.getElementById('target-label').style.display = 'none';
       }
     }
   } else {
@@ -616,8 +703,10 @@ function drawGroundLine(ctx, W, H) {
 function drawPiece(ctx, p, alpha) {
   const pw = getPiecePixW(p);
   const ph = getPiecePixH(p);
+  // Convert worldY to canvas Y for drawing
+  const canvasY = 'worldY' in p ? toCanvasY(p.worldY) : p.y;
   ctx.save();
-  ctx.translate(p.x, p.y);
+  ctx.translate(p.x, canvasY);
   ctx.rotate(p.wobble ? p.wobble.ang : 0);
   ctx.globalAlpha = alpha !== undefined ? alpha : 1;
 
@@ -727,15 +816,18 @@ function darken(hex) {
 
 function drawGhostPiece(ctx) {
   const p = GS.currentPiece;
-  if (!p) return;
+  if (!p || p.onGround) return;
   const pw = getPiecePixW(p);
   const ph = getPiecePixH(p);
-  const ghostY = getTopSurfaceAt(p.x, pw) - ph / 2;
-  if (ghostY <= p.y) return; // piece is already below ghost
+  const surfaceWorldY = getTopSurfaceWorldAt(p.x, pw);
+  const ghostWorldY   = surfaceWorldY + ph / 2;
+  const ghostCanvasY  = toCanvasY(ghostWorldY);
+  const pieceCanvasY  = toCanvasY(p.worldY);
+  if (ghostCanvasY >= pieceCanvasY) return; // ghost is below current piece
 
   ctx.save();
   ctx.globalAlpha = 0.22;
-  ctx.translate(p.x, ghostY);
+  ctx.translate(p.x, ghostCanvasY);
   ctx.fillStyle = p.color !== 'rainbow' ? p.color : '#aaa';
   ctx.strokeStyle = '#fff';
   ctx.lineWidth = 1;
@@ -790,13 +882,44 @@ function renderFrame(ts) {
   GS.placedPieces.forEach(function(p) { drawPiece(ctx, p); });
 
   // Ghost drop indicator
-  if (GS.currentPiece && !GS.currentPiece.settled) drawGhostPiece(ctx);
+  if (GS.currentPiece && !GS.currentPiece.onGround) drawGhostPiece(ctx);
 
   // Draw current piece
-  if (GS.currentPiece && !GS.currentPiece.settled) drawPiece(ctx, GS.currentPiece);
+  if (GS.currentPiece && !GS.currentPiece.onGround) drawPiece(ctx, GS.currentPiece);
 
   // Particles
   drawParticles(ctx);
+
+  // Height indicator (ruler on right edge)
+  drawHeightRuler(ctx, W, H);
+}
+
+function drawHeightRuler(ctx, W, H) {
+  // Draw floor-level numbers on the right side so player can see how high they are
+  ctx.save();
+  ctx.globalAlpha = 0.45;
+  ctx.fillStyle   = 'rgba(255,255,255,0.6)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  ctx.lineWidth   = 1;
+  ctx.font        = '10px Arial';
+  ctx.textAlign   = 'left';
+  ctx.textBaseline = 'middle';
+
+  // Draw a tick every cellPx world units
+  const startFloor = Math.floor(toWorldY(H - 12) / GS.cellPx);
+  const endFloor   = Math.ceil(toWorldY(10) / GS.cellPx);
+  for (let f = Math.max(0, startFloor); f <= endFloor; f++) {
+    const cy = toCanvasY(f * GS.cellPx);
+    const major = (f % 5 === 0);
+    ctx.beginPath();
+    ctx.moveTo(W - 18, cy);
+    ctx.lineTo(W - (major ? 8 : 12), cy);
+    ctx.stroke();
+    if (major && f > 0) {
+      ctx.fillText(String(f), W - 6, cy);
+    }
+  }
+  ctx.restore();
 }
 
 function renderPreview() {
@@ -863,9 +986,8 @@ function renderPreview() {
 // ════════════════════════════════════════════════════════════
 
 function moveCurrentPiece(dir) {
-  // dir: -1 = right (RTL: right arrow = move right visually), +1 = left
   const p = GS.currentPiece;
-  if (!p || p.settled || GS.busy || GS.paused || !GS.running) return;
+  if (!p || p.onGround || GS.busy || GS.paused || !GS.running) return;
   const pw   = getPiecePixW(p);
   const step = GS.cellPx * 0.55;
   p.x += dir * step;
@@ -876,10 +998,9 @@ function moveCurrentPiece(dir) {
 
 function rotateCurrentPiece() {
   const p = GS.currentPiece;
-  if (!p || p.settled || GS.busy || GS.paused || !GS.running) return;
+  if (!p || p.onGround || GS.busy || GS.paused || !GS.running) return;
   p.angle = (p.angle + 90) % 360;
   SoundFX.rotate();
-  // Clamp after rotation
   const pw = getPiecePixW(p);
   const halfW = pw / 2;
   if (p.x - halfW < 4) p.x = halfW + 4;
@@ -888,14 +1009,14 @@ function rotateCurrentPiece() {
 
 function hardDropPiece() {
   const p = GS.currentPiece;
-  if (!p || p.settled || GS.busy || GS.paused || !GS.running) return;
-  const pw = getPiecePixW(p);
-  const ph = getPiecePixH(p);
-  const surfaceY = getTopSurfaceAt(p.x, pw);
-  p.y = surfaceY - ph / 2;
-  p.vy = 0;
-  spawnParticles(p.x, surfaceY, p.color !== 'rainbow' ? p.color : '#ffd700', 8);
-  landPiece(p, surfaceY);
+  if (!p || p.onGround || GS.busy || GS.paused || !GS.running) return;
+  const pw          = getPiecePixW(p);
+  const ph          = getPiecePixH(p);
+  const surfaceWorldY = getTopSurfaceWorldAt(p.x, pw);
+  p.worldY = surfaceWorldY + ph / 2;
+  p.vy     = 0;
+  spawnParticles(p.x, toCanvasY(surfaceWorldY), p.color !== 'rainbow' ? p.color : '#ffd700', 8);
+  landPiece(p, surfaceWorldY);
 }
 
 function wireKeyboard() {
@@ -1404,6 +1525,7 @@ function mainLoop(ts) {
 
     applyPhysics(dt);
     updateWobble(dt);
+    updateCamera(dt);
     updatePU(ts);
     checkHoldupGoal(ts);
 
@@ -1424,9 +1546,12 @@ function mainLoop(ts) {
     updateScoreUI();
     updateGoalUI();
 
-    // Tower mode: end if height is 0 after several pieces
-    if (GS.mode === 'tower' && GS.blocksPlaced >= 5 && GS.towerHeight < 0.5) {
-      endGame('fallen');
+    // Tower mode: end if all pieces fell off after 5+ placed
+    if (GS.mode === 'tower' && GS.blocksPlaced >= 5) {
+      const remaining = GS.placedPieces.filter(function(pl){ return pl.onGround; }).length;
+      if (remaining === 0) {
+        endGame('fallen');
+      }
     }
   }
 
