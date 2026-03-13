@@ -304,9 +304,11 @@ function spawnNextPiece() {
   GS.currentPiece = GS.pieceQueue.shift();
   const p = GS.currentPiece;
   p.x        = GS.canvasW / 2;
-  // Spawn above top of visible canvas area (worldY of top canvas edge)
-  const topWorldY = toWorldY(0);  // world Y that corresponds to canvas top
-  p.worldY   = topWorldY + getPiecePixH(p) + 8;
+  // Spawn just above the top of the visible canvas
+  // toWorldY(0) = world Y that corresponds to canvas y=0 (top edge)
+  // Place piece so its bottom is just at the top edge + a small margin
+  const ph = getPiecePixH(p);
+  p.worldY   = toWorldY(0) + ph / 2 + 6;
   p.vy       = 0;
   p.onGround = false;
   p.wobble   = { ang: 0, vel: 0 };
@@ -410,17 +412,18 @@ function applyPhysics(dt) {
   const p = GS.currentPiece;
   if (!p || p.onGround) return;
 
-  const cfg = DIFF_CFG[GS.diff];
+  const cfg        = DIFF_CFG[GS.diff];
   const slowFactor = (GS.activePU && GS.activePU.def.id === 'slowtime') ? 0.35 : 1;
-  const frozen     = GS.activePU && GS.activePU.def.id === 'magichold';
-  if (frozen) return;
+  if (GS.activePU && GS.activePU.def.id === 'magichold') return;
 
-  const dtNorm = Math.min(dt / 16.67, 2.5);
-  let grav = cfg.gravity * slowFactor * dtNorm;
-  if (GS.softDrop) grav *= 3;
+  // Fixed per-frame gravity (no dt scaling — runs at ~60fps via rAF)
+  // gravity values in cfg are already tuned for 60fps
+  let grav = cfg.gravity * slowFactor;
+  if (GS.softDrop) grav *= 4;
 
   p.vy     += grav;
-  p.worldY -= p.vy * dtNorm;  // worldY=0 is ground; positive=UP; falling → worldY decreases
+  p.vy      = Math.min(p.vy, 18); // cap fall speed so pieces can never teleport past a surface
+  p.worldY -= p.vy;               // worldY: 0=ground, +UP; falling = worldY decreases
 
   const pw = getPiecePixW(p);
   if (p.x - pw/2 < 4)              p.x = pw/2 + 4;
@@ -527,44 +530,40 @@ function checkCollapse() {
 //  - "Falling off" means it gets a horizontal velocity and gravity pulls it down.
 //  - The stability depends on difficulty — easy is very forgiving, hard is strict.
 
-function updateWobble(dt) {
-  const cfg        = DIFF_CFG[GS.diff];
-  const stab       = GS.activePU && GS.activePU.def.id === 'stabilize';
-  const damping    = stab ? 0.94 : 0.82;   // lower = faster damping (less wobble on easy)
-  const spring     = 0.06;
-  const tipAngle   = stab ? 99 : cfg.tipAngle;  // radians before tipping
-  const dtNorm     = Math.min(dt / 16.67, 2.5);
+function updateWobble() {
+  const cfg      = DIFF_CFG[GS.diff];
+  const stab     = GS.activePU && GS.activePU.def.id === 'stabilize';
+  const damping  = stab ? 0.94 : 0.82;
+  const spring   = 0.06;
+  const tipAngle = stab ? 99 : cfg.tipAngle;
 
   GS.placedPieces.forEach(function(pl) {
     if (!pl.wobble) { pl.wobble = { ang: 0, vel: 0 }; }
     if (!pl.onGround) return;
 
-    // Spring back to 0
+    // Spring back to 0 (fixed per-frame, no dtNorm)
     pl.wobble.vel += -pl.wobble.ang * spring;
     pl.wobble.vel *= damping;
-    pl.wobble.ang += pl.wobble.vel * dtNorm;
+    pl.wobble.ang += pl.wobble.vel;
 
-    // Hard cap on visual wobble angle (no more than 0.25 rad = ~14°)
-    const maxVisual = 0.25;
-    if (Math.abs(pl.wobble.ang) > maxVisual) {
-      pl.wobble.ang = Math.sign(pl.wobble.ang) * maxVisual;
+    // Cap visual wobble angle at ~14°
+    if (Math.abs(pl.wobble.ang) > 0.25) {
+      pl.wobble.ang = Math.sign(pl.wobble.ang) * 0.25;
     }
 
-    // Check if piece has tipped past the threshold → it falls
+    // Piece tips past threshold → falls
     if (Math.abs(pl.wobble.ang) >= tipAngle && !stab) {
-      // Piece tips over: remove from settled, give it fall velocity
-      pl.onGround  = false;
-      pl.vy        = 0;
-      pl.fallVx    = pl.wobble.ang * 4;  // horizontal drift direction
-      pl.fallVy    = 0;
+      pl.onGround = false;
+      pl.fallVx   = pl.wobble.ang * 4;
+      pl.fallVy   = 0;
     }
   });
 
   // Apply gravity to falling pieces and remove ones far off screen
   GS.placedPieces.forEach(function(pl) {
     if (pl.onGround) return;
-    pl.fallVy = (pl.fallVy || 0) + 0.35 * Math.min(dt / 16.67, 2.5);
-    pl.worldY -= pl.fallVy;   // falling down
+    pl.fallVy = (pl.fallVy || 0) + 0.35;
+    pl.worldY -= pl.fallVy;
     pl.x      += (pl.fallVx || 0);
   });
 
@@ -578,26 +577,15 @@ function updateWobble(dt) {
 // GS.cameraY = the world-Y that maps to the "ground line" on canvas.
 // When tower grows, we smoothly scroll the camera up so the top is always visible.
 
-function updateCamera(dt) {
-  // Target: keep some space above the top of the tower
-  const marginCells = 3.5;
-  const topWorldY   = GS.towerHeight * GS.cellPx;
-  const currentPieceWorldY = GS.currentPiece ? GS.currentPiece.worldY + getPiecePixH(GS.currentPiece) : 0;
-  const highestPoint = Math.max(topWorldY, currentPieceWorldY);
-
-  // Desired camera: highestPoint should sit at canvasH * 0.25 from top
-  // toCanvasY(highestPoint) = GS.canvasH - 12 - (highestPoint - GS.cameraY) = canvasH * 0.25
-  // => GS.cameraY = highestPoint - (canvasH * 0.25 - (canvasH - 12))
-  //               = highestPoint + canvasH * 0.75 - 12
-  const desiredCameraY = highestPoint + GS.canvasH * 0.68;
-  const dtNorm = Math.min(dt / 16.67, 2.5);
-  const lerpSpeed = 0.04 * dtNorm;
-
-  // Never scroll below ground (camera should at minimum show ground level)
-  const minCamera = GS.canvasH - 12;  // so ground stays at bottom
+function updateCamera() {
+  const topWorldY          = GS.towerHeight * GS.cellPx;
+  const currentPieceTop    = GS.currentPiece ? GS.currentPiece.worldY + getPiecePixH(GS.currentPiece) / 2 : 0;
+  const highestPoint       = Math.max(topWorldY, currentPieceTop);
+  const desiredCameraY     = highestPoint + GS.canvasH * 0.68;
+  const minCamera          = GS.canvasH - 12;
 
   if (desiredCameraY > GS.cameraY) {
-    GS.cameraY += (desiredCameraY - GS.cameraY) * lerpSpeed;
+    GS.cameraY += (desiredCameraY - GS.cameraY) * 0.04;
   }
   if (GS.cameraY < minCamera) GS.cameraY = minCamera;
 }
@@ -1524,8 +1512,8 @@ function mainLoop(ts) {
     }
 
     applyPhysics(dt);
-    updateWobble(dt);
-    updateCamera(dt);
+    updateWobble();
+    updateCamera();
     updatePU(ts);
     checkHoldupGoal(ts);
 
