@@ -493,7 +493,9 @@ function landPiece(p, surfaceWorldY) {
   }
 
   if (GS.mode !== 'free') checkCollapse();
+  if (!GS.running) return;   // collapse may have ended the game — don't spawn
   checkGoal();
+  if (!GS.running) return;   // goal check may have ended the game
   GS._lastPiecePlaced = p;
   spawnNextPiece();
 }
@@ -512,11 +514,12 @@ function updateTowerHeight() {
 
 function checkCollapse() {
   if (GS.placedPieces.length < 2) return;
-  const cfg      = DIFF_CFG[GS.diff];
-  const total    = GS.placedPieces.length;
-  // Pieces that have tipped or fallen off-world
-  const fallen   = GS.placedPieces.filter(function(pl) {
-    return !pl.onGround || pl.worldY < -GS.canvasH * 2 || pl.x < -100 || pl.x > GS.canvasW + 100;
+  const cfg   = DIFF_CFG[GS.diff];
+  const total = GS.placedPieces.length;
+  // Only count pieces that have actually left the visible area (not just tipped)
+  const fallen = GS.placedPieces.filter(function(pl) {
+    return toCanvasY(pl.worldY) > GS.canvasH + 40   // fell below canvas
+        || pl.x < -80 || pl.x > GS.canvasW + 80;    // flew off sides
   }).length;
   if (total > 2 && fallen / total >= cfg.collapseRatio) {
     endGame('collapse');
@@ -1541,10 +1544,12 @@ function mainLoop(ts) {
     updateScoreUI();
     updateGoalUI();
 
-    // Tower mode: end if all placed pieces have fallen off
+    // Tower mode: end if all placed pieces have left the screen
     if (GS.mode === 'tower' && GS.placedPieces.length >= 3) {
-      const remaining = GS.placedPieces.filter(function(pl){ return pl.onGround; }).length;
-      if (remaining === 0) {
+      const offScreen = GS.placedPieces.filter(function(pl) {
+        return toCanvasY(pl.worldY) > GS.canvasH + 40 || pl.x < -80 || pl.x > GS.canvasW + 80;
+      }).length;
+      if (offScreen === GS.placedPieces.length) {
         endGame('fallen');
       }
     }
