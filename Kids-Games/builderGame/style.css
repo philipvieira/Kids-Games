@@ -30,7 +30,7 @@ html, body {
    MAIN MENU
 ══════════════════════════════════════════ */
 #screen-menu {
-  background: linear-gradient(175deg, #87ceeb 0%, #4a9fd4 40%, #1a6ba0 100%);
+  background: linear-gradient(175deg, #7ec8e3 0%, #4a9fd4 40%, #1a6ba0 100%);
   justify-content: flex-start;
   padding: 16px;
 }
@@ -58,12 +58,19 @@ html, body {
 }
 .btn-back-main:hover { background: rgba(255,255,255,0.32); }
 
-.game-title {
-  font-size: clamp(2rem, 9vw, 3.2rem); font-weight: 900;
-  color: #fff;
-  text-shadow: 0 3px 12px rgba(0,0,0,0.3), 0 0 40px rgba(255,230,100,0.4);
-  text-align: center; line-height: 1.1;
+/* Title banner image — cropped from hud.png */
+.title-banner {
+  display: block;
+  width: 100%; max-width: 380px;
+  height: auto;
+  margin: 0 auto;
+  object-fit: contain;
+  object-position: top center;
+  /* Crop: only show top 148px of the 683px-tall hud.png (the banner region) */
+  clip-path: inset(1.5% 17% 78% 17%);
+  margin-top: -6px; margin-bottom: -60px;
   animation: titleBounce 2.5s ease-in-out infinite;
+  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.35));
 }
 @keyframes titleBounce {
   0%,100% { transform: translateY(0); }
@@ -370,14 +377,64 @@ html, body {
   cursor: pointer; white-space: nowrap;
 }
 
+/* ══════════════════════════════════════════
+   HUD SPRITE-BACKED PANELS
+══════════════════════════════════════════ */
+
+/* In-game HUD cells with decorative panel style matching hud.png aesthetic */
+.hud-sprite-panel {
+  background: linear-gradient(180deg, #2a8bc2 0%, #1a6090 100%);
+  border: 2px solid #f5c842;
+  border-radius: 12px;
+  padding: 4px 8px;
+  margin: 0 2px;
+  box-shadow: inset 0 2px 6px rgba(0,0,0,0.3), 0 2px 8px rgba(0,0,0,0.2);
+}
+
+/* Pause button sprite-style */
+.hud-pause-sprite {
+  background: linear-gradient(180deg, #f5d442 0%, #e8a820 100%);
+  border: 2px solid #c98a0a;
+  border-radius: 12px;
+  color: #5a3800;
+  font-size: 1.2rem;
+  padding: 6px 10px;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+  transition: transform 0.1s;
+}
+.hud-pause-sprite:active { transform: scale(0.92); }
+
+/* Start / Play / Resume button sprite-style */
+.hud-start-btn {
+  background: linear-gradient(180deg, #6dd854 0%, #3aab28 100%);
+  color: #fff;
+  border: 2px solid #2a8018;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  box-shadow: 0 4px 16px rgba(58,171,40,0.5);
+  font-weight: 900;
+}
+.hud-start-btn:hover {
+  background: linear-gradient(180deg, #7de86a 0%, #4dbc38 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 22px rgba(58,171,40,0.6);
+}
+
+/* Overlay box with HUD-style decorative border */
+.hud-overlay-bg {
+  border: 3px solid #f5c842;
+  box-shadow: 0 12px 48px rgba(0,0,0,0.5), inset 0 0 30px rgba(255,220,50,0.08);
+}
+
 /* Responsive tweaks */
 @media (max-width: 380px) {
   .menu-box { padding: 14px 10px; }
   #side-panel { width: 58px; }
   .mc-btn { min-width: 52px; }
+  .title-banner { max-width: 280px; margin-bottom: -45px; }
 }
 @media (max-height: 500px) and (orientation: landscape) {
   #mobile-controls { padding: 4px 10px 5px; }
   .mc-btn { min-height: 40px; }
   #hud { padding: 3px 8px; }
+  .title-banner { max-width: 260px; margin-bottom: -40px; }
 }

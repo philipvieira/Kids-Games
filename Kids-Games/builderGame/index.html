@@ -16,7 +16,7 @@
 
     <a href="../mainMenu/index.html" class="btn-back-main">🏠 חזרה לתפריט הראשי</a>
 
-    <div class="game-title">🏗️ בונה מגדלים</div>
+    <img src="hud.png" alt="בונה מגדלים" class="title-banner" />
     <div class="game-tagline">הנח, אזן, ובנה עד השמיים!</div>
 
     <div class="best-badges" id="best-badges"></div>
@@ -41,7 +41,7 @@
       <div class="lvl-dots" id="lvl-dots"></div>
     </div>
 
-    <button class="btn-primary" id="btn-play">▶ שחק!</button>
+    <button class="btn-primary hud-start-btn" id="btn-play">▶ שחק!</button>
 
     <div class="menu-row-btns">
       <button class="btn-secondary" id="btn-howto">❓ איך משחקים</button>
@@ -78,19 +78,19 @@
 
   <!-- HUD top bar -->
   <div id="hud">
-    <div class="hud-cell">
+    <div class="hud-cell hud-sprite-panel">
       <div class="hud-label">ניקוד</div>
       <div class="hud-val" id="hud-score">0</div>
     </div>
-    <div class="hud-cell">
+    <div class="hud-cell hud-sprite-panel">
       <div class="hud-label" id="hud-mid-label">גובה</div>
       <div class="hud-val" id="hud-mid-val">0</div>
     </div>
-    <div class="hud-cell">
+    <div class="hud-cell hud-sprite-panel">
       <div class="hud-label">שיא</div>
       <div class="hud-val" id="hud-best">0</div>
     </div>
-    <button class="pause-btn" id="btn-pause">⏸</button>
+    <button class="pause-btn hud-pause-sprite" id="btn-pause">⏸</button>
   </div>
 
   <!-- Challenge goal bar -->
@@ -144,9 +144,9 @@
      PAUSE OVERLAY
 ══════════════════════════════════════════ -->
 <div id="overlay-pause" class="overlay" style="display:none">
-  <div class="overlay-box">
+  <div class="overlay-box hud-overlay-bg">
     <div class="overlay-title">⏸ הפסקה</div>
-    <button class="ov-btn primary" id="btn-resume">▶ המשך</button>
+    <button class="ov-btn primary hud-start-btn" id="btn-resume">▶ המשך</button>
     <button class="ov-btn" id="btn-restart">🔄 התחל מחדש</button>
     <button class="ov-btn" id="btn-pause-menu">🏠 תפריט</button>
   </div>

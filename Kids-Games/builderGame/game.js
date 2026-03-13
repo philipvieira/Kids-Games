@@ -57,9 +57,9 @@ const PIECE_COLORS = {
 const CELL = 40; // base grid unit in pixels (scaled later)
 
 const DIFF_CFG = {
-  easy:   { fallSpd: 1.8, gravity: 0.07, wobble: 0.018, collapseRatio: 0.5,  puChance: 0.2,  hintDelay: 3000, tipAngle: 0.22 },
-  normal: { fallSpd: 2.8, gravity: 0.10, wobble: 0.030, collapseRatio: 0.35, puChance: 0.12, hintDelay: 5000, tipAngle: 0.17 },
-  hard:   { fallSpd: 4.0, gravity: 0.14, wobble: 0.045, collapseRatio: 0.25, puChance: 0.06, hintDelay: 9000, tipAngle: 0.12 },
+  easy:   { fallSpd: 1.8, gravity: 0.035, wobble: 0.018, collapseRatio: 0.5,  puChance: 0.2,  hintDelay: 3000, tipAngle: 0.22 },
+  normal: { fallSpd: 2.8, gravity: 0.05,  wobble: 0.030, collapseRatio: 0.35, puChance: 0.12, hintDelay: 5000, tipAngle: 0.17 },
+  hard:   { fallSpd: 4.0, gravity: 0.07,  wobble: 0.045, collapseRatio: 0.25, puChance: 0.06, hintDelay: 9000, tipAngle: 0.12 },
 };
 
 // Power-up definitions
@@ -69,6 +69,78 @@ const PU_DEFS = [
   { id: 'undo',       icon: '↩️',  name: 'בטל',        dur: 0     },
   { id: 'giant',      icon: '🦾', name: 'ענק',         dur: 0     },
 ];
+
+// ════════════════════════════════════════════════════════════
+// 1b. ASSET LOADER & SPRITE DEFINITIONS
+// ════════════════════════════════════════════════════════════
+
+const ASSETS = { bg: null, blocks: null, hud: null, ready: false };
+
+function loadAssets(callback) {
+  var loaded = 0, total = 3;
+  function onLoad() { if (++loaded >= total) { ASSETS.ready = true; callback(); } }
+  function onError(name) { console.warn('Asset failed to load: ' + name); onLoad(); }
+
+  ASSETS.bg     = new Image(); ASSETS.bg.onload     = onLoad; ASSETS.bg.onerror     = function(){ onError('background.png'); };
+  ASSETS.blocks = new Image(); ASSETS.blocks.onload = onLoad; ASSETS.blocks.onerror = function(){ onError('blocks.png'); };
+  ASSETS.hud    = new Image(); ASSETS.hud.onload    = onLoad; ASSETS.hud.onerror    = function(){ onError('hud.png'); };
+
+  ASSETS.bg.src     = 'background.png';
+  ASSETS.blocks.src = 'blocks.png';
+  ASSETS.hud.src    = 'hud.png';
+}
+
+// Sprite regions in blocks.png (1024x683) — { sx, sy, sw, sh }
+const BLOCK_SPRITES = {
+  square: [
+    { sx: 42,  sy: 25, sw: 130, sh: 110 },
+    { sx: 190, sy: 25, sw: 130, sh: 110 },
+    { sx: 338, sy: 25, sw: 130, sh: 110 },
+    { sx: 485, sy: 25, sw: 130, sh: 110 },
+    { sx: 633, sy: 25, sw: 130, sh: 110 },
+  ],
+  rect: [
+    { sx: 42,  sy: 155, sw: 160, sh: 65 },
+    { sx: 220, sy: 155, sw: 160, sh: 65 },
+    { sx: 398, sy: 155, sw: 160, sh: 65 },
+    { sx: 575, sy: 155, sw: 160, sh: 65 },
+  ],
+  triangle: [{ sx: 50,  sy: 258, sw: 140, sh: 118 }],
+  arch:     [{ sx: 215, sy: 260, sw: 145, sh: 100 }],
+  circle:   [{ sx: 375, sy: 260, sw: 112, sh: 112 }],
+  plank:    [{ sx: 525, sy: 272, sw: 250, sh: 45  }],
+  heavy:    [{ sx: 633, sy: 25,  sw: 130, sh: 110 }],
+  rainbow:  [{ sx: 32,  sy: 385, sw: 142, sh: 122 }],
+  bouncy:   [{ sx: 190, sy: 385, sw: 100, sh: 128 }],
+  sticky:   [{ sx: 308, sy: 385, sw: 112, sh: 122 }],
+  star:     [{ sx: 438, sy: 392, sw: 100, sh: 100 }],
+};
+
+// Power-up icon sprites in blocks.png
+const PU_SPRITES = {
+  slowtime:  { sx: 558, sy: 385, sw: 82,  sh: 112 },
+  undo:      { sx: 658, sy: 392, sw: 88,  sh: 88  },
+  giant:     { sx: 760, sy: 382, sw: 98,  sh: 100 },
+  stabilize: { sx: 438, sy: 392, sw: 100, sh: 100 },
+};
+
+// HUD sprite regions in hud.png (1024x683)
+const HUD_SPRITES = {
+  title:     { sx: 175, sy: 12,  sw: 672, sh: 148 },
+  score:     { sx: 15,  sy: 190, sw: 285, sh: 145 },
+  hearts:    { sx: 640, sy: 190, sw: 365, sh: 88  },
+  pauseBtn:  { sx: 612, sy: 330, sw: 98,  sh: 98  },
+  checkBtn:  { sx: 718, sy: 330, sw: 98,  sh: 98  },
+  menuBtn:   { sx: 822, sy: 330, sw: 98,  sh: 98  },
+  startBtn:  { sx: 580, sy: 495, sw: 280, sh: 70  },
+  progressBar: { sx: 255, sy: 505, sw: 280, sh: 42 },
+};
+
+function pickSpriteVariant(pieceId) {
+  var variants = BLOCK_SPRITES[pieceId];
+  if (!variants || variants.length === 0) return null;
+  return variants[Math.floor(Math.random() * variants.length)];
+}
 
 // ════════════════════════════════════════════════════════════
 // 2. STORAGE
@@ -260,13 +332,14 @@ function makeQueuePiece(id) {
     id:       id,
     def:      def,
     x:        GS.canvasW / 2,
-    worldY:   0,           // will be set in spawnNextPiece
+    worldY:   0,
     vy:       0,
-    angle:    0,           // 0, 90, 180, 270
+    angle:    0,
     color:    getPieceColor(id),
     special:  def.special || null,
     wobble:   { ang: 0, vel: 0 },
     onGround: false,
+    spriteRegion: pickSpriteVariant(id),
   };
 }
 
@@ -789,49 +862,51 @@ function resizeCanvas() {
   if (GS.cameraY === 0) GS.cameraY = 0; // world Y 0 = ground, shown at canvas bottom
 }
 
+// Ground in background.png is at ~73% from top of the image
+var BG_GROUND_FRAC = 0.73;
+
 function drawBackground(ctx, W, H) {
-  // Sky gradient
-  const sky = ctx.createLinearGradient(0, 0, 0, H);
+  if (ASSETS.ready && ASSETS.bg) {
+    var img = ASSETS.bg;
+    var groundCanvasY = toCanvasY(0);
+
+    // Scale image so its width fills the canvas
+    var scale = W / img.width;
+    var imgH  = img.height * scale;
+    // Align the image ground line with the physics ground
+    var imgY  = groundCanvasY - imgH * BG_GROUND_FRAC;
+
+    ctx.drawImage(img, 0, imgY, W, imgH);
+
+    // Fill below with dirt if ground scrolls up and reveals bottom
+    if (groundCanvasY < H) {
+      ctx.fillStyle = '#7a5c1e';
+      ctx.fillRect(0, groundCanvasY, W, H - groundCanvasY + 20);
+    }
+    // Fill sky above if image doesn't reach top
+    if (imgY > 0) {
+      ctx.fillStyle = '#7ec8e3';
+      ctx.fillRect(0, 0, W, imgY);
+    }
+  } else {
+    drawBackgroundFallback(ctx, W, H);
+  }
+}
+
+function drawBackgroundFallback(ctx, W, H) {
+  var sky = ctx.createLinearGradient(0, 0, 0, H);
   sky.addColorStop(0, '#b0d8f0');
   sky.addColorStop(1, '#5db0e0');
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, W, H);
 
-  // Clouds
-  drawClouds(ctx, W, H);
-
-  // Ground — draw at the world Y=0 position (scrolls with camera)
-  const groundCanvasY = toCanvasY(0);
-  if (groundCanvasY < H) { // only draw if visible
+  var groundCanvasY = toCanvasY(0);
+  if (groundCanvasY < H) {
     ctx.fillStyle = '#8B6914';
     ctx.fillRect(0, groundCanvasY, W, H - groundCanvasY + 12);
     ctx.fillStyle = '#6B8E23';
     ctx.fillRect(0, groundCanvasY - 4, W, 6);
   }
-}
-
-// Simple animated clouds (position based on time so they drift)
-const CLOUDS = [
-  { x: 0.12, y: 0.06, r: 0.08 },
-  { x: 0.55, y: 0.10, r: 0.06 },
-  { x: 0.82, y: 0.05, r: 0.07 },
-];
-let cloudOffset = 0;
-
-function drawClouds(ctx, W, H) {
-  ctx.save();
-  CLOUDS.forEach(function(c) {
-    const cx = ((c.x * W + cloudOffset * 0.3) % (W * 1.2)) - W * 0.1;
-    const cy = c.y * H;
-    const r  = c.r * W;
-    ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.arc(cx + r * 0.7, cy - r * 0.2, r * 0.7, 0, Math.PI * 2);
-    ctx.arc(cx - r * 0.7, cy - r * 0.1, r * 0.6, 0, Math.PI * 2);
-    ctx.fill();
-  });
-  ctx.restore();
 }
 
 function drawGroundLine(ctx, W, H) {
@@ -865,31 +940,32 @@ function drawGroundLine(ctx, W, H) {
 }
 
 function drawPiece(ctx, p, alpha) {
-  const pw = getPiecePixW(p);
-  const ph = getPiecePixH(p);
-  // Convert worldY to canvas Y for drawing
-  const canvasY = 'worldY' in p ? toCanvasY(p.worldY) : p.y;
+  var pw = getPiecePixW(p);
+  var ph = getPiecePixH(p);
+  var canvasY = 'worldY' in p ? toCanvasY(p.worldY) : p.y;
   ctx.save();
   ctx.translate(p.x, canvasY);
   ctx.rotate(p.wobble ? p.wobble.ang : 0);
   ctx.globalAlpha = alpha !== undefined ? alpha : 1;
 
-  const color = resolveColor(p);
+  var sp = p.spriteRegion;
+  if (ASSETS.ready && ASSETS.blocks && sp) {
+    ctx.drawImage(ASSETS.blocks, sp.sx, sp.sy, sp.sw, sp.sh, -pw / 2, -ph / 2, pw, ph);
+  } else {
+    drawPieceFallback(ctx, p, pw, ph);
+  }
+  ctx.restore();
+}
 
-  // Shadow
+function drawPieceFallback(ctx, p, pw, ph) {
+  var color = resolveColor(p);
   ctx.fillStyle = 'rgba(0,0,0,0.18)';
   drawShape(ctx, p.def.shape, pw + 4, ph + 4, 2, 2);
-
-  // Main fill
   ctx.fillStyle = color;
   ctx.strokeStyle = darken(color);
   ctx.lineWidth = 2;
   drawShape(ctx, p.def.shape, pw, ph, 0, 0);
-
-  // Special overlay
   if (p.special) drawSpecialOverlay(ctx, p, pw, ph);
-
-  ctx.restore();
 }
 
 function resolveColor(p) {
@@ -990,14 +1066,20 @@ function drawGhostPiece(ctx) {
   if (ghostCanvasY >= pieceCanvasY) return;
 
   var valid = isPlacementValid();
+  var sp    = p.spriteRegion;
 
   ctx.save();
-  ctx.globalAlpha = valid ? 0.22 : 0.35;
+  ctx.globalAlpha = valid ? 0.25 : 0.35;
   ctx.translate(p.x, ghostCanvasY);
-  ctx.fillStyle   = valid ? (p.color !== 'rainbow' ? p.color : '#aaa') : '#ff3333';
-  ctx.strokeStyle = valid ? '#fff' : '#ff0000';
-  ctx.lineWidth   = valid ? 1 : 2;
-  drawShape(ctx, p.def.shape, pw, ph, 0, 0);
+
+  if (ASSETS.ready && ASSETS.blocks && sp && valid) {
+    ctx.drawImage(ASSETS.blocks, sp.sx, sp.sy, sp.sw, sp.sh, -pw / 2, -ph / 2, pw, ph);
+  } else {
+    ctx.fillStyle   = valid ? (p.color !== 'rainbow' ? p.color : '#aaa') : '#ff3333';
+    ctx.strokeStyle = valid ? '#fff' : '#ff0000';
+    ctx.lineWidth   = valid ? 1 : 2;
+    drawShape(ctx, p.def.shape, pw, ph, 0, 0);
+  }
 
   if (!valid) {
     ctx.globalAlpha = 0.85;
@@ -1046,8 +1128,6 @@ function renderFrame(ts) {
   const canvas = document.getElementById('game-canvas');
   const ctx    = canvas.getContext('2d');
   const W = GS.canvasW, H = GS.canvasH;
-
-  cloudOffset += 0.2;
 
   ctx.clearRect(0, 0, W, H);
   drawBackground(ctx, W, H);
@@ -1098,58 +1178,43 @@ function drawHeightRuler(ctx, W, H) {
 }
 
 function renderPreview() {
-  const canvas = document.getElementById('preview-canvas');
-  const ctx    = canvas.getContext('2d');
-  const CW = canvas.width, CH = canvas.height;
+  var canvas = document.getElementById('preview-canvas');
+  var ctx    = canvas.getContext('2d');
+  var CW = canvas.width, CH = canvas.height;
   ctx.clearRect(0, 0, CW, CH);
   if (GS.pieceQueue.length === 0) return;
 
-  const next = GS.pieceQueue[0];
-  const def  = next.def;
+  var next  = GS.pieceQueue[0];
+  var def   = next.def;
+  var scale = Math.min(CW / (def.w * CELL * 1.4), CH / (def.h * CELL * 1.4), 1);
+  var pw    = def.w * CELL * scale;
+  var ph    = def.h * CELL * scale;
+  var sp    = next.spriteRegion;
 
-  // Scale to fit the 70×70 preview box
-  const scale  = Math.min(CW / (def.w * CELL * 1.4), CH / (def.h * CELL * 1.4), 1);
-  const pw     = def.w * CELL * scale;
-  const ph     = def.h * CELL * scale;
-
-  // Build a minimal temp piece
-  const tmp = {
-    id:      next.id,
-    def:     def,
-    x:       CW / 2,
-    y:       CH / 2,
-    angle:   0,
-    wobble:  { ang: 0, vel: 0 },
-    color:   next.color,
-    special: next.special,
-  };
-
-  // Draw directly without using GS canvas
   ctx.save();
   ctx.translate(CW / 2, CH / 2);
 
-  // Shadow
-  ctx.fillStyle = 'rgba(0,0,0,0.18)';
-  ctx.beginPath();
-  drawShape(ctx, def.shape, pw + 3, ph + 3, 1, 1);
-
-  // Fill
-  const color = next.color !== 'rainbow' ? next.color : '#aaddff';
-  ctx.fillStyle = color;
-  ctx.strokeStyle = darken(color);
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  drawShape(ctx, def.shape, pw, ph, 0, 0);
-
-  // Icon
-  if (next.special) {
-    const icons = { heavy:'⚙️', bouncy:'💫', sticky:'🍯', star:'⭐', rainbow:'🌈' };
-    const ic = icons[next.special];
-    if (ic) {
-      ctx.font = Math.round(Math.min(pw, ph) * 0.38) + 'px Arial';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillStyle = '#fff';
-      ctx.fillText(ic, 0, 0);
+  if (ASSETS.ready && ASSETS.blocks && sp) {
+    ctx.drawImage(ASSETS.blocks, sp.sx, sp.sy, sp.sw, sp.sh, -pw / 2, -ph / 2, pw, ph);
+  } else {
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.beginPath();
+    drawShape(ctx, def.shape, pw + 3, ph + 3, 1, 1);
+    var color = next.color !== 'rainbow' ? next.color : '#aaddff';
+    ctx.fillStyle = color;
+    ctx.strokeStyle = darken(color);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    drawShape(ctx, def.shape, pw, ph, 0, 0);
+    if (next.special) {
+      var icons = { heavy:'\u2699\uFE0F', bouncy:'\uD83D\uDCAB', sticky:'\uD83C\uDF6F', star:'\u2B50', rainbow:'\uD83C\uDF08' };
+      var ic = icons[next.special];
+      if (ic) {
+        ctx.font = Math.round(Math.min(pw, ph) * 0.38) + 'px Arial';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#fff';
+        ctx.fillText(ic, 0, 0);
+      }
     }
   }
 
@@ -1780,14 +1845,16 @@ function restoreSettings() {
 // ════════════════════════════════════════════════════════════
 
 function init() {
-  restoreSettings();
-  wireMenu();
-  wireGame();
-  wireKeyboard();
-  wireMobileControls();
-  wireResize();
-  updateMenuDisplay();
-  showScreen('screen-menu');
+  loadAssets(function() {
+    restoreSettings();
+    wireMenu();
+    wireGame();
+    wireKeyboard();
+    wireMobileControls();
+    wireResize();
+    updateMenuDisplay();
+    showScreen('screen-menu');
+  });
 }
 
 document.addEventListener('DOMContentLoaded', init);
