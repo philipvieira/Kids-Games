@@ -529,7 +529,7 @@ function updateCamera() {
   // toCanvasY(ttw) = canvasH - (ttw - cameraY)
   // We want: canvasH - (ttw - cameraY) >= craneBottom + CRANE_CLEARANCE
   // So: cameraY >= ttw - canvasH + craneBottom + CRANE_CLEARANCE
-  var CRANE_CLEARANCE = 30;  // px gap between crane block and tower top
+  var CRANE_CLEARANCE = 140;  // px gap between crane block bottom and tower top
   var craneBottom = GS.pivotY + GS.ropeLen + GS.blockSz / 2 + CRANE_CLEARANCE;
   var minCameraY  = ttw - GS.canvasH + craneBottom;
   GS.targetCameraY = Math.max(0, minCameraY);
