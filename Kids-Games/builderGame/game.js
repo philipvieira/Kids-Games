@@ -57,9 +57,9 @@ const PIECE_COLORS = {
 const CELL = 40; // base grid unit in pixels (scaled later)
 
 const DIFF_CFG = {
-  easy:   { fallSpd: 1.8, gravity: 0.18, wobble: 0.018, collapseRatio: 0.5,  puChance: 0.2,  hintDelay: 3000, tipAngle: 0.22 },
-  normal: { fallSpd: 2.8, gravity: 0.26, wobble: 0.030, collapseRatio: 0.35, puChance: 0.12, hintDelay: 5000, tipAngle: 0.17 },
-  hard:   { fallSpd: 4.0, gravity: 0.36, wobble: 0.045, collapseRatio: 0.25, puChance: 0.06, hintDelay: 9000, tipAngle: 0.12 },
+  easy:   { fallSpd: 1.8, gravity: 0.07, wobble: 0.018, collapseRatio: 0.5,  puChance: 0.2,  hintDelay: 3000, tipAngle: 0.22 },
+  normal: { fallSpd: 2.8, gravity: 0.10, wobble: 0.030, collapseRatio: 0.35, puChance: 0.12, hintDelay: 5000, tipAngle: 0.17 },
+  hard:   { fallSpd: 4.0, gravity: 0.14, wobble: 0.045, collapseRatio: 0.25, puChance: 0.06, hintDelay: 9000, tipAngle: 0.12 },
 };
 
 // Power-up definitions
@@ -303,8 +303,8 @@ function spawnNextPiece() {
   GS.currentPiece = GS.pieceQueue.shift();
   const p  = GS.currentPiece;
   const pw = getPiecePixW(p);
-  // Random horizontal offset: up to ±25% of canvas width from center, clamped to edges
-  const maxOffset = GS.canvasW * 0.25;
+  // Random horizontal offset: up to ±10% of canvas width from center, clamped to edges
+  const maxOffset = GS.canvasW * 0.10;
   const offset    = (Math.random() - 0.5) * 2 * maxOffset;
   p.x      = Math.max(pw / 2 + 8, Math.min(GS.canvasW - pw / 2 - 8, GS.canvasW / 2 + offset));
   const ph = getPiecePixH(p);
