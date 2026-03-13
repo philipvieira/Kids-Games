@@ -75,8 +75,8 @@ const PU_DEFS = [
 // ════════════════════════════════════════════════════════════
 //
 // Two image files:
-//   background.png — full construction-scene background (1024×682, opaque)
-//   blocks.png     — block/special sprites, transparent background (1024×682)
+//   assets/background.png — full construction-scene background (1024×682, opaque)
+//   assets/blocks.png     — block/special sprites, transparent background (1024×682)
 
 const ASSETS = { bg: null, blocks: null, ready: false };
 
@@ -89,8 +89,8 @@ function loadAssets(callback) {
     img.onerror = function() { console.warn('Failed to load', src); onLoad(); };
     img.src = src;
   }
-  load('bg',     'background.png');
-  load('blocks', 'blocks.png');
+  load('bg',     'assets/background.png');
+  load('blocks', 'assets/blocks.png');
 }
 
 /* ── BLOCK SPRITES (blocks.png — transparent bg, 1024×682) ───────────
@@ -310,7 +310,7 @@ const SoundFX = (() => {
 })();
 
 const BgMusic = (() => {
-  const aud = new Audio('TowerMusic.mp3');
+  const aud = new Audio('assets/TowerMusic.mp3');
   aud.loop   = true;
   aud.volume = 0.32;
   return {
