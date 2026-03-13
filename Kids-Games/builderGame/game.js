@@ -76,21 +76,26 @@ const PU_DEFS = [
 
 const ASSETS = { bg: null, blocks: null, hud: null, ready: false };
 
-// Sprite sheets have a solid black background; this converts near-black
-// pixels to transparent so sprites render cleanly over any backdrop.
-// Falls back to the raw image if canvas security blocks getImageData.
+// PNGs are pre-processed at build time with transparent backgrounds.
+// This runtime fallback catches any residual dark fringe pixels and also
+// handles the case where pre-processing was skipped (e.g. fresh assets).
+// Returns a canvas with near-black pixels made transparent, or the raw
+// image if getImageData is blocked by CORS (file:// protocol).
 function removeBlackBG(img) {
   try {
     var c = document.createElement('canvas');
-    c.width  = img.width;
-    c.height = img.height;
+    c.width  = img.naturalWidth  || img.width;
+    c.height = img.naturalHeight || img.height;
     var cx = c.getContext('2d');
     cx.drawImage(img, 0, 0);
     var data = cx.getImageData(0, 0, c.width, c.height);
     var px = data.data;
     for (var i = 0; i < px.length; i += 4) {
-      if (px[i] < 18 && px[i + 1] < 18 && px[i + 2] < 18) {
+      var maxC = Math.max(px[i], px[i + 1], px[i + 2]);
+      if (maxC < 35) {
         px[i + 3] = 0;
+      } else if (maxC < 55) {
+        px[i + 3] = Math.round((maxC - 35) / 20 * px[i + 3]);
       }
     }
     cx.putImageData(data, 0, 0);
@@ -479,7 +484,6 @@ function getPiecePixH(p) {
 //  - toCanvasY / toWorldY convert between world and canvas pixels.
 
 const CONTACT_TOL     = 10;   // px gap allowed for "touching"
-const MIN_SUPPORT     = 0.10; // min overlap fraction for support
 const COM_TOLERANCE   = { easy: 0.90, normal: 0.70, hard: 0.50 };
 
 function toCanvasY(worldY) {
@@ -504,21 +508,21 @@ function overlapLen(aL, aR, bL, bR) {
 //  - Side: edges meet with vertical overlap
 
 function areTouching(a, b) {
-  const aL = pLeft(a),  aR = pRight(a);
-  const bL = pLeft(b),  bR = pRight(b);
-  const aB = pBot(a),   aT = pTop(a);
-  const bB = pBot(b),   bT = pTop(b);
+  var aL = pLeft(a),  aR = pRight(a);
+  var bL = pLeft(b),  bR = pRight(b);
+  var aB = pBot(a),   aT = pTop(a);
+  var bB = pBot(b),   bT = pTop(b);
 
-  const hOv = overlapLen(aL, aR, bL, bR);
-  const vOv = overlapLen(aB, aT, bB, bT);
-  const minW = Math.min(aR - aL, bR - bL);
-  const minH = Math.min(aT - aB, bT - bB);
+  var hOv = overlapLen(aL, aR, bL, bR);
+  var vOv = overlapLen(aB, aT, bB, bT);
 
-  if (hOv > minW * MIN_SUPPORT) {
+  // Vertical contact: one sits on the other (top≈bottom) with >3px horizontal overlap
+  if (hOv > 3) {
     if (Math.abs(aT - bB) < CONTACT_TOL) return true;
     if (Math.abs(bT - aB) < CONTACT_TOL) return true;
   }
-  if (vOv > Math.max(minH * MIN_SUPPORT, 4)) {
+  // Side contact: edges meet with >3px vertical overlap
+  if (vOv > 3) {
     if (Math.abs(aR - bL) < CONTACT_TOL) return true;
     if (Math.abs(bR - aL) < CONTACT_TOL) return true;
   }
@@ -530,9 +534,8 @@ function isOnGround(p) {
 }
 
 function isSittingOn(upper, lower) {
-  const hOv = overlapLen(pLeft(upper), pRight(upper), pLeft(lower), pRight(lower));
-  const minW = Math.min(getPiecePixW(upper), getPiecePixW(lower));
-  if (hOv < minW * MIN_SUPPORT) return false;
+  var hOv = overlapLen(pLeft(upper), pRight(upper), pLeft(lower), pRight(lower));
+  if (hOv < 3) return false;
   return Math.abs(pBot(upper) - pTop(lower)) < CONTACT_TOL;
 }
 
@@ -670,7 +673,7 @@ function getTopSurfaceWorldAt(px, pw) {
     var pl = GS.placedPieces[i];
     if (!pl.onGround) continue;
     var ov = overlapLen(px - pw / 2, px + pw / 2, pLeft(pl), pRight(pl));
-    if (ov >= pw * MIN_SUPPORT) {
+    if (ov > 3) {
       var t = pTop(pl);
       if (t > topWY) topWY = t;
     }
@@ -698,14 +701,14 @@ function wouldConnectToTower(px, pw, surfaceWorldY) {
     var qL = pLeft(q), qR = pRight(q), qB = pBot(q), qT = pTop(q);
     var hOv = overlapLen(newL, newR, qL, qR);
     var vOv = overlapLen(newBot, newTop, qB, qT);
-    var minW = Math.min(newR - newL, qR - qL);
-    var minH = Math.min(newTop - newBot, qT - qB);
 
-    if (hOv > minW * MIN_SUPPORT) {
+    // Vertical contact (sitting on or under): any horizontal overlap > 3px
+    if (hOv > 3) {
       if (Math.abs(newBot - qT) < CONTACT_TOL) return true;
       if (Math.abs(qB - newTop) < CONTACT_TOL) return true;
     }
-    if (vOv > Math.max(minH * MIN_SUPPORT, 4)) {
+    // Side contact: any vertical overlap > 3px
+    if (vOv > 3) {
       if (Math.abs(newR - qL) < CONTACT_TOL) return true;
       if (Math.abs(qR - newL) < CONTACT_TOL) return true;
     }
@@ -1454,10 +1457,12 @@ function checkGoal() {
         setTimeout(function(){ showLevelWin(); }, 400);
       }
     } else if (lvl.type === 'toptype') {
-      // Top piece must match topType
       if (GS.placedPieces.length > 0) {
-        const topPiece = GS.placedPieces.reduce(function(a, b){ return (a.y < b.y) ? a : b; });
-        if (topPiece.id === lvl.topType && GS.placedPieces.length >= 3) {
+        var onGndPcs = GS.placedPieces.filter(function(p) { return p.onGround; });
+        var topPiece = onGndPcs.length > 0
+          ? onGndPcs.reduce(function(a, b){ return a.worldY > b.worldY ? a : b; })
+          : null;
+        if (topPiece && topPiece.id === lvl.topType && onGndPcs.length >= 3) {
           GS.challengeDone = true;
           setTimeout(function(){ showLevelWin(); }, 400);
         }
@@ -1473,9 +1478,11 @@ function checkGoal() {
         setTimeout(function(){ showLevelWin(); }, 400);
       }
     } else if (lvl.type === 'starontop') {
-      const hasStarOnTop = GS.placedPieces.some(function(p){
-        return p.special === 'star' && GS.towerHeight >= lvl.target;
-      });
+      var onGndTop = GS.placedPieces.filter(function(p) { return p.onGround; });
+      var topP = onGndTop.length > 0
+        ? onGndTop.reduce(function(a, b) { return a.worldY > b.worldY ? a : b; })
+        : null;
+      var hasStarOnTop = topP && topP.special === 'star' && GS.towerHeight >= lvl.target;
       if (hasStarOnTop) {
         GS.challengeDone = true;
         setTimeout(function(){ showLevelWin(); }, 400);
