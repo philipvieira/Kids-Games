@@ -352,78 +352,198 @@ function getPiecePixH(p) {
 //  - GS.cameraY follows the top of the tower so the player can
 //    always see where they are building.
 
-function getGroundWorldY() { return 0; } // ground is world y=0, top is negative
+// ════════════════════════════════════════════════════════════
+// 7. PHYSICS WORLD
+// ════════════════════════════════════════════════════════════
+//
+// MODEL:
+//  - Pieces have worldY (0=ground, positive=up).
+//  - A piece is "supported" if it overlaps ≥ SUPPORT_OVERLAP of its width
+//    with the ground OR another onGround piece beneath it.
+//  - On landing: if not supported, the piece slides off (falls).
+//  - After each placement, a stability pass checks every column of pieces:
+//    the combined center-of-mass of a piece + everything above it must sit
+//    within the support footprint below it, or the overhang group falls.
+//  - Falling pieces animate off-screen with gravity + horizontal drift.
+//
+// COORDINATE SYSTEM:
+//  - worldY=0 is ground. Positive worldY = higher up.
+//  - toCanvasY / toWorldY handle conversion to canvas pixels.
+// ────────────────────────────────────────────────────────────
 
-// Convert world Y to canvas Y
-// worldY=0 is ground (shown at canvas bottom). Higher worldY = higher on screen (lower canvasY).
-// cameraY = world Y currently shown at the bottom reference line (ground line).
+const SUPPORT_OVERLAP = 0.25; // fraction of piece width that must overlap support
+
 function toCanvasY(worldY) {
   return GS.canvasH - 12 - (worldY - GS.cameraY);
 }
-// Convert canvas Y to world Y (inverse of toCanvasY)
 function toWorldY(canvasY) {
   return GS.cameraY + (GS.canvasH - 12 - canvasY);
 }
 
-// Get the world-Y top surface at a given x (returns world Y of topmost surface)
+function getPieceLeft(p)   { return p.x - getPiecePixW(p) / 2; }
+function getPieceRight(p)  { return p.x + getPiecePixW(p) / 2; }
+function getPieceBottom(p) { return p.worldY - getPiecePixH(p) / 2; }
+function getPieceTop(p)    { return p.worldY + getPiecePixH(p) / 2; }
+
+// Horizontal overlap length between two ranges [aL,aR] and [bL,bR]
+function overlapX(aL, aR, bL, bR) {
+  return Math.max(0, Math.min(aR, bR) - Math.max(aL, bL));
+}
+
+// Does piece p have enough horizontal support from the ground or another piece q?
+// Returns true if the overlap is at least SUPPORT_OVERLAP * p's width.
+function isSupportedBy(p, q) {
+  // q===null means ground
+  const pw   = getPiecePixW(p);
+  const pL   = getPieceLeft(p);
+  const pR   = getPieceRight(p);
+  if (q === null) {
+    // ground support: piece bottom must be at/near worldY=0
+    if (Math.abs(getPieceBottom(p)) > 4) return false;
+    return overlapX(pL, pR, 0, GS.canvasW) / pw >= SUPPORT_OVERLAP;
+  }
+  // piece-on-piece: q must be directly below p (q top ≈ p bottom) and overlap enough
+  const qTop = getPieceTop(q);
+  const pBot = getPieceBottom(p);
+  if (Math.abs(qTop - pBot) > 6) return false; // not touching
+  return overlapX(pL, pR, getPieceLeft(q), getPieceRight(q)) / pw >= SUPPORT_OVERLAP;
+}
+
+// Find the topmost surface worldY under position px with width pw
 function getTopSurfaceWorldAt(px, pw) {
   let topWorldY = 0; // ground
   for (let i = 0; i < GS.placedPieces.length; i++) {
     const pl = GS.placedPieces[i];
     if (!pl.onGround) continue;
-    const plLeft  = pl.x - getPiecePixW(pl) / 2;
-    const plRight = pl.x + getPiecePixW(pl) / 2;
-    const pLeft   = px - pw / 2;
-    const pRight  = px + pw / 2;
-    // Require meaningful overlap (>20% of new piece width) to count as support
-    const overlap = Math.min(pRight, plRight) - Math.max(pLeft, plLeft);
-    if (overlap > pw * 0.20) {
-      const plTopWorldY = pl.worldY + getPiecePixH(pl) / 2;
-      if (plTopWorldY > topWorldY) topWorldY = plTopWorldY;
+    const ov = overlapX(px - pw/2, px + pw/2, getPieceLeft(pl), getPieceRight(pl));
+    if (ov >= pw * SUPPORT_OVERLAP) {
+      const top = getPieceTop(pl);
+      if (top > topWorldY) topWorldY = top;
     }
   }
   return topWorldY;
 }
 
-// Compute how far off-center the new piece is from its supporting surface
-// Returns a signed overhang ratio: 0=perfect center, ±1=completely off edge
-function computeOverhangRatio(px, pw) {
-  // Find the support piece(s) under us
-  let totalSupportWidth = 0;
-  let weightedCenterX   = 0;
-  for (let i = 0; i < GS.placedPieces.length; i++) {
-    const pl = GS.placedPieces[i];
-    if (!pl.onGround) continue;
-    const plLeft  = pl.x - getPiecePixW(pl) / 2;
-    const plRight = pl.x + getPiecePixW(pl) / 2;
-    const pLeft   = px - pw / 2;
-    const pRight  = px + pw / 2;
-    const overlap = Math.min(pRight, plRight) - Math.max(pLeft, plLeft);
-    if (overlap > 0) {
-      const overlapCenter = (Math.max(pLeft, plLeft) + Math.min(pRight, plRight)) / 2;
-      totalSupportWidth += overlap;
-      weightedCenterX   += overlapCenter * overlap;
-    }
+// After placing, check connectivity: each onGround piece must be reachable
+// from the ground via support links. Disconnected pieces start falling.
+function checkConnectivity() {
+  const pieces = GS.placedPieces.filter(function(pl) { return pl.onGround; });
+  if (pieces.length === 0) return;
+
+  // BFS from ground: a piece is "connected" if it is supported by ground or a connected piece
+  const connected = new Set();
+
+  // Seed: pieces resting directly on the ground
+  pieces.forEach(function(p) {
+    if (isSupportedBy(p, null)) connected.add(p);
+  });
+
+  // Iteratively mark pieces supported by already-connected pieces
+  let changed = true;
+  while (changed) {
+    changed = false;
+    pieces.forEach(function(p) {
+      if (connected.has(p)) return;
+      for (let i = 0; i < pieces.length; i++) {
+        const q = pieces[i];
+        if (!connected.has(q)) continue;
+        if (isSupportedBy(p, q)) {
+          connected.add(p);
+          changed = true;
+          break;
+        }
+      }
+    });
   }
-  if (totalSupportWidth < 2) return 0; // on ground, no overhang
-  const supportCenter = weightedCenterX / totalSupportWidth;
-  const halfPw = pw / 2;
-  return (px - supportCenter) / halfPw; // signed: positive = leaning right
+
+  // Any piece not in connected set → falls off
+  pieces.forEach(function(p) {
+    if (!connected.has(p)) {
+      p.onGround = false;
+      p.fallVx   = (Math.random() - 0.5) * 3;
+      p.fallVy   = 0;
+      p.wobble   = { ang: p.wobble ? p.wobble.ang : 0, vel: 0.15 };
+      SoundFX.fail && SoundFX.fail();
+    }
+  });
 }
 
-function applyPhysics(dt) {
+// Stability (center-of-mass) check.
+// For each piece, compute the COM of all pieces at the same height or above.
+// If that COM falls outside the support range of the pieces below, the upper
+// group tips and falls.
+function checkStability() {
+  const cfg    = DIFF_CFG[GS.diff];
+  const stab   = GS.activePU && GS.activePU.def.id === 'stabilize';
+  if (stab) return;
+
+  // Allow a COM overhang fraction before tipping (more forgiving on easy)
+  const tolerance = { easy: 0.60, normal: 0.45, hard: 0.30 }[GS.diff];
+
+  const pieces = GS.placedPieces.filter(function(pl) { return pl.onGround; });
+  // Sort bottom to top
+  pieces.sort(function(a, b) { return a.worldY - b.worldY; });
+
+  // For each piece, gather everything it directly/transitively supports above it
+  // and check if their combined COM is within this piece's footprint.
+  for (let i = 0; i < pieces.length; i++) {
+    const base = pieces[i];
+    const baseL = getPieceLeft(base);
+    const baseR = getPieceRight(base);
+
+    // Collect the "stack" on top of base: pieces whose bottom is at/near base's top
+    // and that are horizontally overlapping base
+    const above = [];
+    for (let j = i + 1; j < pieces.length; j++) {
+      const p = pieces[j];
+      const ov = overlapX(getPieceLeft(p), getPieceRight(p), baseL, baseR);
+      if (ov > 0 && getPieceBottom(p) >= base.worldY - 2) {
+        above.push(p);
+      }
+    }
+    if (above.length === 0) continue;
+
+    // Weighted COM of the above stack
+    let totalMass = 0, weightedX = 0;
+    above.forEach(function(p) {
+      const m = p.def.mass || 1;
+      totalMass  += m;
+      weightedX  += p.x * m;
+    });
+    const comX = weightedX / totalMass;
+
+    // Support range: use base piece footprint + tolerance
+    const halfSupport = (baseR - baseL) / 2 * tolerance;
+    const supportMid  = (baseL + baseR) / 2;
+
+    if (Math.abs(comX - supportMid) > halfSupport) {
+      // The stack above base is unbalanced — tip them
+      const dir = comX > supportMid ? 1 : -1;
+      above.forEach(function(p) {
+        p.onGround = false;
+        p.fallVx   = dir * (1.5 + Math.random() * 2);
+        p.fallVy   = 0;
+        p.wobble   = { ang: dir * 0.08, vel: dir * 0.12 };
+      });
+      // Visual wobble on base too
+      if (base.wobble) { base.wobble.vel += dir * 0.08; }
+      break; // one collapse cascade at a time
+    }
+  }
+}
+
+function applyPhysics() {
   const p = GS.currentPiece;
   if (!p || p.onGround) return;
 
   const cfg        = DIFF_CFG[GS.diff];
   const slowFactor = (GS.activePU && GS.activePU.def.id === 'slowtime') ? 0.35 : 1;
-  // Fixed per-frame gravity (no dt scaling — runs at ~60fps via rAF)
   let grav = cfg.gravity * slowFactor;
   if (GS.softDrop) grav *= 4;
 
   p.vy     += grav;
-  p.vy      = Math.min(p.vy, 18); // cap fall speed so pieces can never teleport past a surface
-  p.worldY -= p.vy;               // worldY: 0=ground, +UP; falling = worldY decreases
+  p.vy      = Math.min(p.vy, 18);
+  p.worldY -= p.vy;
 
   const pw = getPiecePixW(p);
   if (p.x - pw/2 < 4)              p.x = pw/2 + 4;
@@ -443,29 +563,43 @@ function landPiece(p, surfaceWorldY) {
   p.worldY   = surfaceWorldY + ph / 2;
   p.vy       = 0;
   p.onGround = true;
+  p.wobble   = p.wobble || { ang: 0, vel: 0.04 };
 
-  // Compute overhang — how badly off-center is this piece?
-  const pw       = getPiecePixW(p);
-  const overhang = computeOverhangRatio(p.x, pw);  // -1..+1
-  const cfg      = DIFF_CFG[GS.diff];
+  // Quick check: is this piece actually supported?
+  // If it landed but has < SUPPORT_OVERLAP coverage, it slides off
+  const pw      = getPiecePixW(p);
+  const hasSupp = isSupportedBy(p, null) ||
+    GS.placedPieces.some(function(q) { return q.onGround && isSupportedBy(p, q); });
 
-  // Wobble impulse proportional to overhang + difficulty + mass effect
-  const mass         = p.def.mass || 1;
-  const wobbleMult   = (p.special === 'sticky') ? 0.15 : 1.0;
-  const bounceAdd    = (p.special === 'bouncy')  ? 0.12 : 0.04;
-  const overhangImpulse = overhang * cfg.wobble * 12 * wobbleMult;
-
-  // Apply impulse to ALL settled pieces (heavier piece = stronger impulse)
-  GS.placedPieces.forEach(function(pl) {
-    if (!pl.onGround || !pl.wobble) return;
-    const randomJitter = (Math.random() - 0.5) * cfg.wobble * 0.8 * wobbleMult;
-    pl.wobble.vel += (overhangImpulse + randomJitter) * mass * 0.5;
-  });
-  p.wobble     = p.wobble || { ang: 0, vel: 0 };
-  p.wobble.vel = bounceAdd * (overhang * 2 + (Math.random() - 0.5));
+  if (!hasSupp) {
+    // Slide off — piece gets a sideways nudge toward the gap
+    const surfaceMid = getTopSurfaceWorldAt(p.x - pw * 0.3, pw * 0.6) >
+                       getTopSurfaceWorldAt(p.x + pw * 0.3, pw * 0.6) ? -1 : 1;
+    p.onGround = false;
+    p.fallVx   = surfaceMid * (1 + Math.random());
+    p.fallVy   = 0;
+    GS.placedPieces.push(p);
+    GS.blocksPlaced++;
+    SoundFX.place();
+    if (GS.mode !== 'free') checkCollapse();
+    if (!GS.running) return;
+    checkGoal();
+    if (!GS.running) return;
+    GS._lastPiecePlaced = p;
+    spawnNextPiece();
+    return;
+  }
 
   GS.placedPieces.push(p);
   GS.blocksPlaced++;
+
+  // Small landing wobble on all settled pieces
+  const cfg  = DIFF_CFG[GS.diff];
+  const mass = p.def.mass || 1;
+  GS.placedPieces.forEach(function(pl) {
+    if (!pl.onGround || !pl.wobble) return;
+    pl.wobble.vel += (Math.random() - 0.5) * cfg.wobble * mass * 3;
+  });
 
   updateTowerHeight();
   SoundFX.place();
@@ -492,10 +626,14 @@ function landPiece(p, surfaceWorldY) {
     if (!GS.activePU) activateNextPU();
   }
 
+  // Check connectivity and stability after each placement
+  checkConnectivity();
+  checkStability();
+
   if (GS.mode !== 'free') checkCollapse();
-  if (!GS.running) return;   // collapse may have ended the game — don't spawn
+  if (!GS.running) return;
   checkGoal();
-  if (!GS.running) return;   // goal check may have ended the game
+  if (!GS.running) return;
   GS._lastPiecePlaced = p;
   spawnNextPiece();
 }
@@ -504,7 +642,7 @@ function updateTowerHeight() {
   let maxWorldY = 0;
   GS.placedPieces.forEach(function(pl) {
     if (!pl.onGround) return;
-    const top = pl.worldY + getPiecePixH(pl) / 2;
+    const top = getPieceTop(pl);
     if (top > maxWorldY) maxWorldY = top;
   });
   GS.towerHeight = Math.round(maxWorldY / GS.cellPx * 10) / 10;
@@ -516,82 +654,48 @@ function checkCollapse() {
   if (GS.placedPieces.length < 2) return;
   const cfg   = DIFF_CFG[GS.diff];
   const total = GS.placedPieces.length;
-  // Only count pieces that have actually left the visible area (not just tipped)
   const fallen = GS.placedPieces.filter(function(pl) {
-    return toCanvasY(pl.worldY) > GS.canvasH + 40   // fell below canvas
-        || pl.x < -80 || pl.x > GS.canvasW + 80;    // flew off sides
+    return toCanvasY(pl.worldY) > GS.canvasH + 60
+        || pl.x < -80 || pl.x > GS.canvasW + 80;
   }).length;
   if (total > 2 && fallen / total >= cfg.collapseRatio) {
     endGame('collapse');
   }
 }
 
-// ── BALANCE / WOBBLE UPDATE ──────────────────────────────────
-// Physics model:
-//  - Each settled piece has a wobble spring (ang, vel).
-//  - If a piece's angle exceeds a tipping threshold, it falls off the stack.
-//  - "Falling off" means it gets a horizontal velocity and gravity pulls it down.
-//  - The stability depends on difficulty — easy is very forgiving, hard is strict.
-
-function updateWobble() {
-  const cfg      = DIFF_CFG[GS.diff];
-  const stab     = GS.activePU && GS.activePU.def.id === 'stabilize';
-  const damping  = stab ? 0.94 : 0.82;
-  const spring   = 0.06;
-  const tipAngle = stab ? 99 : cfg.tipAngle;
-
+// Animate falling pieces and clean up off-screen ones
+function updateFallingPieces() {
   GS.placedPieces.forEach(function(pl) {
-    if (!pl.wobble) { pl.wobble = { ang: 0, vel: 0 }; }
-    if (!pl.onGround) return;
-
-    // Spring back to 0 (fixed per-frame, no dtNorm)
-    pl.wobble.vel += -pl.wobble.ang * spring;
-    pl.wobble.vel *= damping;
-    pl.wobble.ang += pl.wobble.vel;
-
-    // Cap visual wobble angle at ~14°
-    if (Math.abs(pl.wobble.ang) > 0.25) {
-      pl.wobble.ang = Math.sign(pl.wobble.ang) * 0.25;
+    if (pl.onGround) {
+      // Gentle visual wobble spring (cosmetic only, no tipping)
+      if (!pl.wobble) pl.wobble = { ang: 0, vel: 0 };
+      pl.wobble.vel += -pl.wobble.ang * 0.08;
+      pl.wobble.vel *= 0.80;
+      pl.wobble.ang += pl.wobble.vel;
+      pl.wobble.ang  = Math.max(-0.18, Math.min(0.18, pl.wobble.ang));
+      return;
     }
-
-    // Piece tips past threshold → falls
-    if (Math.abs(pl.wobble.ang) >= tipAngle && !stab) {
-      pl.onGround = false;
-      pl.fallVx   = pl.wobble.ang * 4;
-      pl.fallVy   = 0;
-    }
-  });
-
-  // Apply gravity to falling pieces and remove ones far off screen
-  GS.placedPieces.forEach(function(pl) {
-    if (pl.onGround) return;
-    pl.fallVy = (pl.fallVy || 0) + 0.35;
+    // Falling piece
+    pl.fallVy = (pl.fallVy || 0) + 0.4;
     pl.worldY -= pl.fallVy;
     pl.x      += (pl.fallVx || 0);
+    if (pl.wobble) {
+      pl.wobble.ang += pl.wobble.vel || 0;
+      pl.wobble.vel  = (pl.wobble.vel || 0) * 0.95;
+    }
   });
 
-  // Remove pieces that have fallen far off world
+  // Remove pieces far off-screen
   GS.placedPieces = GS.placedPieces.filter(function(pl) {
-    return pl.worldY > -GS.canvasH * 3 && pl.x > -200 && pl.x < GS.canvasW + 200;
+    return toCanvasY(pl.worldY) < GS.canvasH + 200
+        && pl.x > -300 && pl.x < GS.canvasW + 300;
   });
 }
 
 // ── CAMERA ───────────────────────────────────────────────────
-// GS.cameraY = the world-Y that maps to the "ground line" on canvas.
-// When tower grows, we smoothly scroll the camera up so the top is always visible.
-
 function updateCamera() {
-  // Only track the placed tower height — don't follow the falling piece.
-  // The piece should fall visibly into view from the top.
   const topWorldY      = GS.towerHeight * GS.cellPx;
-
-  // We want the tower top to sit at ~30% from the top of the canvas.
-  // toCanvasY(topWorldY) = canvasH - 12 - (topWorldY - cameraY) = canvasH * 0.30
-  // => cameraY = topWorldY - canvasH * 0.70 + 12
   const desiredCameraY = topWorldY - GS.canvasH * 0.70 + 12;
-
-  // Only scroll up when tower grows tall enough to need it.
-  // Never scroll down below 0 (ground must stay at canvas bottom).
   if (desiredCameraY > GS.cameraY) {
     GS.cameraY += (desiredCameraY - GS.cameraY) * 0.05;
   }
@@ -1254,7 +1358,8 @@ function resumeGame() {
 
 function endGame(reason) {
   if (!GS.running) return;
-  GS.running = false;
+  GS.running      = false;
+  GS.currentPiece = null;  // stop any in-air piece immediately
   BgMusic.stop();
 
   SoundFX.fail();
@@ -1522,7 +1627,7 @@ function mainLoop(ts) {
     }
 
     applyPhysics(dt);
-    updateWobble();
+    updateFallingPieces();
     updateCamera();
     updatePU(ts);
     checkHoldupGoal(ts);
@@ -1544,14 +1649,11 @@ function mainLoop(ts) {
     updateScoreUI();
     updateGoalUI();
 
-    // Tower mode: end if all placed pieces have left the screen
-    if (GS.mode === 'tower' && GS.placedPieces.length >= 3) {
-      const offScreen = GS.placedPieces.filter(function(pl) {
-        return toCanvasY(pl.worldY) > GS.canvasH + 40 || pl.x < -80 || pl.x > GS.canvasW + 80;
-      }).length;
-      if (offScreen === GS.placedPieces.length) {
-        endGame('fallen');
-      }
+    // Tower/challenge mode: if current piece is still in air after all placed fell, end game
+    if (GS.mode !== 'free' && GS.placedPieces.length >= 3) {
+      const onGnd = GS.placedPieces.filter(function(pl){ return pl.onGround; }).length;
+      const total = GS.placedPieces.length;
+      if (onGnd === 0 && total >= 3) endGame('fallen');
     }
   }
 
