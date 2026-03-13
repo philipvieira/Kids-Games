@@ -1455,66 +1455,19 @@ function renderHighScores() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  MUSIC  (AudioContext — works on iOS Safari & Android Chrome)
+//  MUSIC
 // ═══════════════════════════════════════════════════════════════
-let audioCtx      = null;
-let musicBuffer   = null;
-let musicSource   = null;
-let musicLoaded   = false;
-let musicWanted   = false;   // true once the player taps Start
-
-function _getAudioCtx() {
-  if (!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  }
-  return audioCtx;
-}
-
-// Fetch + decode the audio file once (must be called after a user gesture)
-function _loadMusic() {
-  if (musicBuffer) return Promise.resolve();
-  if (musicLoaded) return Promise.resolve();
-  musicLoaded = true;
-  return fetch('assets/8bit race.mp4')
-    .then(r => r.arrayBuffer())
-    .then(buf => _getAudioCtx().decodeAudioData(buf))
-    .then(decoded => { musicBuffer = decoded; })
-    .catch(() => { musicLoaded = false; });
-}
-
-function _playBuffer() {
-  if (!musicBuffer || !audioCtx) return;
-  if (musicSource) { try { musicSource.stop(); } catch(e) {} }
-  const src = audioCtx.createBufferSource();
-  src.buffer = musicBuffer;
-  src.loop   = true;
-  const gain = audioCtx.createGain();
-  gain.gain.value = 0.55;
-  src.connect(gain);
-  gain.connect(audioCtx.destination);
-  src.start(0);
-  musicSource = src;
-}
+const _bgAudio = new Audio('assets/8bit race.mp4');
+_bgAudio.loop   = true;
+_bgAudio.volume = 0.55;
 
 function startMusic() {
-  musicWanted = true;
-  const ctx = _getAudioCtx();
-  const doPlay = () => {
-    _loadMusic().then(() => { if (musicWanted) _playBuffer(); }).catch(() => {});
-  };
-  if (ctx.state === 'suspended') {
-    ctx.resume().then(doPlay).catch(() => {});
-  } else {
-    doPlay();
-  }
+  _bgAudio.play().catch(() => {});
 }
 
 function stopMusic() {
-  musicWanted = false;
-  if (musicSource) {
-    try { musicSource.stop(); } catch(e) {}
-    musicSource = null;
-  }
+  _bgAudio.pause();
+  _bgAudio.currentTime = 0;
 }
 
 // ═══════════════════════════════════════════════════════════════
