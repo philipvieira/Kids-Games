@@ -65,7 +65,7 @@ const MAX_SWING    = 0.92;    // max amplitude cap (rad)
 // Block: SQUARE, sized as fraction of the GAME area width
 // The game area is capped at MAX_GAME_W so blocks look the same on desktop and mobile.
 const MAX_GAME_W      = 420;    // px — game column never wider than this (matches phone)
-const BLOCK_SIZE_FRAC = 0.22;   // block side = gameW * this  (gameW ≤ MAX_GAME_W)
+const BLOCK_SIZE_FRAC = 0.38;   // block side = gameW * this  (larger, like the reference)
 const MIN_BLOCK_PX    = 16;     // minimum block width before game ends
 
 // ── Combo messages ─────────────────────────────────────────
@@ -625,11 +625,12 @@ function resizeCanvas() {
 
   // Crane pivot: horizontally centred, vertically at bottom of cranebar image
   GS.pivotX   = GS.gameX + Math.round(GS.gameW / 2);
-  var barH    = Math.max(28, Math.round(GS.blockSz * 0.40));
-  GS.pivotY   = barH;   // rope hangs from bottom edge of bar
+  // Bar height: tall and bold, roughly equal to block size
+  var barH    = Math.max(50, Math.round(GS.blockSz * 0.90));
+  GS.pivotY   = barH;
 
-  // Rope length: hangs block comfortably below the bar
-  GS.ropeLen  = Math.round(GS.canvasH * 0.26);
+  // Rope length: 1.8× block size — rope + pulley looks proportional to block
+  GS.ropeLen  = Math.round(GS.blockSz * 1.8);
 }
 
 // ── Camera ────────────────────────────────────────────────
@@ -795,7 +796,8 @@ function drawLetterbox() {
 // GS.hookX / GS.hookY are written here and used by handleDrop to
 // capture the drop position.
 function drawCraneArm() {
-  var barH   = Math.max(28, Math.round(GS.blockSz * 0.40));
+  // Bar height matches resizeCanvas calculation
+  var barH    = Math.max(50, Math.round(GS.blockSz * 0.90));
   var ropeLen = GS.ropeLen;
   var sz      = GS.blockSz;
 
@@ -811,16 +813,13 @@ function drawCraneArm() {
   var pivX = GS.gameX + Math.round(GS.gameW / 2);
   var pivY = barH;
 
-  // Write to GS so handleDrop and blockCentreCanvas are in sync
   GS.pivotX    = pivX;
   GS.pivotY    = pivY;
   GS.ropeDrawH = ropeLen;
 
   // ── 2. Rope + block in one rotated context ─────────────
-  // Everything below is in LOCAL space: (0,0) = pivot, y grows downward.
-  // rope top = (0, 0)  →  rope bottom / hook tip = (0, ropeLen)
-  // block top = (−sz/2, ropeLen)  →  block bottom = (−sz/2, ropeLen+sz)
-  var ropeW = Math.round(sz * 0.75);
+  // Rope image width = 1.5× block so the pulley/hook looks bold and proportional
+  var ropeW = Math.round(sz * 1.5);
 
   ctx.save();
   ctx.translate(pivX, pivY);
@@ -831,14 +830,14 @@ function drawCraneArm() {
     ctx.drawImage(craneRopeImg, -ropeW / 2, 0, ropeW, ropeLen);
   } else {
     ctx.strokeStyle = '#d97706';
-    ctx.lineWidth   = 6;
+    ctx.lineWidth   = 8;
     ctx.beginPath();
     ctx.moveTo(0, 0);
     ctx.lineTo(0, ropeLen);
     ctx.stroke();
     ctx.fillStyle = '#9ca3af';
     ctx.beginPath();
-    ctx.arc(0, ropeLen, 10, 0, Math.PI * 2);
+    ctx.arc(0, ropeLen, 14, 0, Math.PI * 2);
     ctx.fill();
   }
 
