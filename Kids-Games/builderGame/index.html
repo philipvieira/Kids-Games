@@ -8,32 +8,29 @@
 </head>
 <body>
 
-<!-- ══════════════════════════════════════════
-     MAIN MENU
-══════════════════════════════════════════ -->
+<!-- MAIN MENU -->
 <div id="screen-menu" class="screen active">
   <div class="menu-box">
 
     <a href="../mainMenu/index.html" class="btn-back-main">🏠 חזרה לתפריט הראשי</a>
 
-    <canvas id="title-canvas" class="title-banner-canvas" width="695" height="155"></canvas>
-    <div id="title-text-fallback" class="game-title" style="display:none">🏗️ בונה מגדלים</div>
+    <div class="game-title">🏗️ בנה מגדלים</div>
     <div class="game-tagline">הנח, אזן, ובנה עד השמיים!</div>
 
     <div class="best-badges" id="best-badges"></div>
 
     <div class="section-label">מצב משחק</div>
     <div class="btn-group" id="mode-btns">
-      <button class="sel-btn active" data-mode="tower">🏆 מגדל</button>
-      <button class="sel-btn" data-mode="challenge">🎯 אתגר</button>
-      <button class="sel-btn" data-mode="free">🎨 חופשי</button>
+      <button class="sel-btn sprite-btn-green active" data-mode="tower">🏆 מגדל</button>
+      <button class="sel-btn sprite-btn-green" data-mode="challenge">🎯 אתגר</button>
+      <button class="sel-btn sprite-btn-green" data-mode="free">🎨 חופשי</button>
     </div>
 
     <div class="section-label">רמת קושי</div>
     <div class="diff-row">
-      <button class="diff-btn active" data-diff="easy">😊<br/>קל</button>
-      <button class="diff-btn" data-diff="normal">🎯<br/>רגיל</button>
-      <button class="diff-btn" data-diff="hard">💀<br/>קשה</button>
+      <button class="diff-btn sprite-btn-purple active" data-diff="easy">😊<br/>קל</button>
+      <button class="diff-btn sprite-btn-purple" data-diff="normal">🎯<br/>רגיל</button>
+      <button class="diff-btn sprite-btn-purple" data-diff="hard">💀<br/>קשה</button>
     </div>
 
     <!-- Challenge level progress -->
@@ -42,21 +39,19 @@
       <div class="lvl-dots" id="lvl-dots"></div>
     </div>
 
-    <button class="btn-primary hud-start-btn" id="btn-play">▶ שחק!</button>
+    <button class="btn-primary sprite-btn-play" id="btn-play">▶ שחק!</button>
 
     <div class="menu-row-btns">
-      <button class="btn-secondary" id="btn-howto">❓ איך משחקים</button>
+      <button class="btn-secondary sprite-btn-blue" id="btn-howto">❓ איך משחקים</button>
       <div class="sound-row">
         <span class="sound-label">צליל:</span>
-        <button class="sound-toggle on" id="btn-sound">🔊 פועל</button>
+        <button class="sound-toggle on sprite-btn-blue" id="btn-sound">🔊 פועל</button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ══════════════════════════════════════════
-     HOW TO PLAY MODAL
-══════════════════════════════════════════ -->
+<!-- HOW TO PLAY MODAL -->
 <div id="modal-howto" class="modal-overlay" style="display:none">
   <div class="modal-box">
     <div class="modal-title">❓ איך משחקים?</div>
@@ -68,30 +63,28 @@
     <hr class="how-sep"/>
     <div class="how-row"><span class="hi">⌨️</span><span><strong>מחשב:</strong> חצים / WASD לזוז, Space לנפול, P/Esc הפסקה</span></div>
     <div class="how-row"><span class="hi">📱</span><span><strong>מובייל:</strong> כפתורים גדולים בתחתית המסך</span></div>
-    <button class="btn-primary" id="btn-howto-close">סגור</button>
+    <button class="btn-primary sprite-btn-green" id="btn-howto-close">סגור</button>
   </div>
 </div>
 
-<!-- ══════════════════════════════════════════
-     GAME SCREEN
-══════════════════════════════════════════ -->
+<!-- GAME SCREEN -->
 <div id="screen-game" class="screen">
 
   <!-- HUD top bar -->
   <div id="hud">
-    <div class="hud-cell hud-sprite-panel">
+    <div class="hud-cell hud-panel-sprite">
       <div class="hud-label">ניקוד</div>
       <div class="hud-val" id="hud-score">0</div>
     </div>
-    <div class="hud-cell hud-sprite-panel">
+    <div class="hud-cell hud-panel-sprite">
       <div class="hud-label" id="hud-mid-label">גובה</div>
       <div class="hud-val" id="hud-mid-val">0</div>
     </div>
-    <div class="hud-cell hud-sprite-panel">
+    <div class="hud-cell hud-panel-sprite">
       <div class="hud-label">שיא</div>
       <div class="hud-val" id="hud-best">0</div>
     </div>
-    <button class="pause-btn hud-pause-sprite" id="btn-pause">⏸</button>
+    <button class="pause-btn hud-btn-sprite" id="btn-pause">⏸</button>
   </div>
 
   <!-- Challenge goal bar -->
@@ -102,9 +95,8 @@
     </div>
   </div>
 
-  <!-- Next piece preview + power-up slot + Main game canvas in a row -->
+  <!-- Next piece preview + power-up slot + Main game canvas -->
   <div id="game-layout">
-    <!-- Next piece preview + power-up slot -->
     <div id="side-panel">
       <div class="preview-box">
         <div class="preview-label">הבא</div>
@@ -117,12 +109,9 @@
       </div>
     </div>
 
-    <!-- Main game canvas -->
     <div id="canvas-wrap">
       <canvas id="game-canvas"></canvas>
-      <!-- Floating message -->
       <div id="float-msg" class="float-msg" style="display:none"></div>
-      <!-- Height target line label -->
       <div id="target-label" class="target-label" style="display:none">🎯 יעד</div>
     </div>
   </div>
@@ -141,43 +130,37 @@
 
 </div>
 
-<!-- ══════════════════════════════════════════
-     PAUSE OVERLAY
-══════════════════════════════════════════ -->
+<!-- PAUSE OVERLAY -->
 <div id="overlay-pause" class="overlay" style="display:none">
-  <div class="overlay-box hud-overlay-bg">
+  <div class="overlay-box">
     <div class="overlay-title">⏸ הפסקה</div>
-    <button class="ov-btn primary hud-start-btn" id="btn-resume">▶ המשך</button>
-    <button class="ov-btn" id="btn-restart">🔄 התחל מחדש</button>
-    <button class="ov-btn" id="btn-pause-menu">🏠 תפריט</button>
+    <button class="ov-btn primary sprite-btn-green" id="btn-resume">▶ המשך</button>
+    <button class="ov-btn sprite-btn-blue" id="btn-restart">🔄 התחל מחדש</button>
+    <button class="ov-btn sprite-btn-blue" id="btn-pause-menu">🏠 תפריט</button>
   </div>
 </div>
 
-<!-- ══════════════════════════════════════════
-     LEVEL COMPLETE OVERLAY
-══════════════════════════════════════════ -->
+<!-- LEVEL COMPLETE OVERLAY -->
 <div id="overlay-levelwin" class="overlay" style="display:none">
   <div class="overlay-box win-box">
     <div class="overlay-title">🎉 עברת שלב!</div>
     <div class="win-stars" id="win-stars">⭐⭐⭐</div>
     <div class="win-msg" id="win-msg">כל הכבוד!</div>
     <div class="win-stats" id="win-stats"></div>
-    <button class="ov-btn primary" id="btn-next-level">⏩ שלב הבא</button>
-    <button class="ov-btn" id="btn-lvl-menu">🏠 תפריט</button>
+    <button class="ov-btn primary sprite-btn-green" id="btn-next-level">⏩ שלב הבא</button>
+    <button class="ov-btn sprite-btn-blue" id="btn-lvl-menu">🏠 תפריט</button>
   </div>
 </div>
 
-<!-- ══════════════════════════════════════════
-     GAME OVER OVERLAY
-══════════════════════════════════════════ -->
+<!-- GAME OVER OVERLAY -->
 <div id="overlay-gameover" class="overlay" style="display:none">
   <div class="overlay-box gameover-box">
     <div class="overlay-title">🏗️ המשחק נגמר!</div>
     <div class="go-msg" id="go-msg">כל הכבוד בונה!</div>
     <div class="go-stats" id="go-stats"></div>
     <div class="go-best" id="go-best" style="display:none">🏆 שיא חדש!</div>
-    <button class="ov-btn primary" id="btn-play-again">🔄 שחק שוב</button>
-    <button class="ov-btn" id="btn-go-menu">🏠 תפריט</button>
+    <button class="ov-btn primary sprite-btn-green" id="btn-play-again">🔄 שחק שוב</button>
+    <button class="ov-btn sprite-btn-blue" id="btn-go-menu">🏠 תפריט</button>
   </div>
 </div>
 
