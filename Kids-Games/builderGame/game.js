@@ -130,6 +130,8 @@ const GS = {
   particles:    [],
   floatMsgTimer: 0,
 
+  rootPiece:    null,  // first placed block — defines the tower
+
   cameraY: 0,       // world-Y that maps to canvas ground line (scrolls as tower grows)
 
   lastTs:  0,
@@ -164,7 +166,8 @@ function resetRuntime() {
   GS.moveRight     = false;
   GS.softDrop      = false;
   GS.moveTimer     = 0;
-  GS.cameraY       = 0;   // will be set properly in resizeCanvas after screen is active
+  GS.cameraY       = 0;
+  GS.rootPiece     = null;
   if (GS.loopId) { cancelAnimationFrame(GS.loopId); GS.loopId = null; }
 }
 
@@ -335,43 +338,25 @@ function getPiecePixH(p) {
 }
 
 // ════════════════════════════════════════════════════════════
-// 7. PHYSICS WORLD
+// 7. PHYSICS WORLD — Root-connected tower with COM balance
 // ════════════════════════════════════════════════════════════
 //
-// BALANCE SYSTEM:
-//  - Each piece has a world-y coordinate (worldY). The camera scrolls
-//    so that worldY = canvasY - cameraOffsetY.
-//  - When a piece lands, we compute the CENTER-OF-MASS of the entire
-//    stack (x-weighted). If it leans too far, pieces on the outside
-//    gradually tip and fall.
-//  - "Overlap fraction" determines landing: only pieces that overlap
-//    at least 25% of their width actually support the new piece.
-//    Off-edge landings get an immediate strong lean impulse.
+// RULES:
+//  1. The first placed block is the ROOT / foundation.
+//  2. Every subsequent block must physically touch the existing tower.
+//  3. After each placement, a contact graph is built and BFS from
+//     root determines which pieces are connected. Disconnected = fall.
+//  4. Center-of-mass stability: for each support contact, the COM of
+//     everything above must stay within the support footprint or tip.
+//  5. Pieces that lose support animate falling off-screen.
 //
-// CAMERA:
-//  - GS.cameraY follows the top of the tower so the player can
-//    always see where they are building.
+// COORDINATES:
+//  - worldY=0 is ground. Positive = up.
+//  - toCanvasY / toWorldY convert between world and canvas pixels.
 
-// ════════════════════════════════════════════════════════════
-// 7. PHYSICS WORLD
-// ════════════════════════════════════════════════════════════
-//
-// MODEL:
-//  - Pieces have worldY (0=ground, positive=up).
-//  - A piece is "supported" if it overlaps ≥ SUPPORT_OVERLAP of its width
-//    with the ground OR another onGround piece beneath it.
-//  - On landing: if not supported, the piece slides off (falls).
-//  - After each placement, a stability pass checks every column of pieces:
-//    the combined center-of-mass of a piece + everything above it must sit
-//    within the support footprint below it, or the overhang group falls.
-//  - Falling pieces animate off-screen with gravity + horizontal drift.
-//
-// COORDINATE SYSTEM:
-//  - worldY=0 is ground. Positive worldY = higher up.
-//  - toCanvasY / toWorldY handle conversion to canvas pixels.
-// ────────────────────────────────────────────────────────────
-
-const SUPPORT_OVERLAP = 0.25; // fraction of piece width that must overlap support
+const CONTACT_TOL     = 6;    // px gap allowed for "touching"
+const MIN_SUPPORT     = 0.18; // min overlap fraction for support
+const COM_TOLERANCE   = { easy: 0.75, normal: 0.55, hard: 0.38 };
 
 function toCanvasY(worldY) {
   return GS.canvasH - 12 - (worldY - GS.cameraY);
@@ -380,222 +365,302 @@ function toWorldY(canvasY) {
   return GS.cameraY + (GS.canvasH - 12 - canvasY);
 }
 
-function getPieceLeft(p)   { return p.x - getPiecePixW(p) / 2; }
-function getPieceRight(p)  { return p.x + getPiecePixW(p) / 2; }
-function getPieceBottom(p) { return p.worldY - getPiecePixH(p) / 2; }
-function getPieceTop(p)    { return p.worldY + getPiecePixH(p) / 2; }
+function pLeft(p)   { return p.x - getPiecePixW(p) / 2; }
+function pRight(p)  { return p.x + getPiecePixW(p) / 2; }
+function pBot(p)    { return p.worldY - getPiecePixH(p) / 2; }
+function pTop(p)    { return p.worldY + getPiecePixH(p) / 2; }
 
-// Horizontal overlap length between two ranges [aL,aR] and [bL,bR]
-function overlapX(aL, aR, bL, bR) {
+function overlapLen(aL, aR, bL, bR) {
   return Math.max(0, Math.min(aR, bR) - Math.max(aL, bL));
 }
 
-// Does piece p have enough horizontal support from the ground or another piece q?
-// Returns true if the overlap is at least SUPPORT_OVERLAP * p's width.
-function isSupportedBy(p, q) {
-  // q===null means ground
-  const pw   = getPiecePixW(p);
-  const pL   = getPieceLeft(p);
-  const pR   = getPieceRight(p);
-  if (q === null) {
-    // ground support: piece bottom must be at/near worldY=0
-    if (Math.abs(getPieceBottom(p)) > 4) return false;
-    return overlapX(pL, pR, 0, GS.canvasW) / pw >= SUPPORT_OVERLAP;
+// ── CONTACT DETECTION ─────────────────────────────────────
+// Two pieces are "in contact" if they share a face:
+//  - Vertical: one sits on the other (top≈bottom) with horizontal overlap
+//  - Side: edges meet with vertical overlap
+
+function areTouching(a, b) {
+  const aL = pLeft(a),  aR = pRight(a);
+  const bL = pLeft(b),  bR = pRight(b);
+  const aB = pBot(a),   aT = pTop(a);
+  const bB = pBot(b),   bT = pTop(b);
+
+  const hOv = overlapLen(aL, aR, bL, bR);
+  const vOv = overlapLen(aB, aT, bB, bT);
+  const minW = Math.min(aR - aL, bR - bL);
+  const minH = Math.min(aT - aB, bT - bB);
+
+  if (hOv > minW * MIN_SUPPORT) {
+    if (Math.abs(aT - bB) < CONTACT_TOL) return true;
+    if (Math.abs(bT - aB) < CONTACT_TOL) return true;
   }
-  // piece-on-piece: q must be directly below p (q top ≈ p bottom) and overlap enough
-  const qTop = getPieceTop(q);
-  const pBot = getPieceBottom(p);
-  if (Math.abs(qTop - pBot) > 6) return false; // not touching
-  return overlapX(pL, pR, getPieceLeft(q), getPieceRight(q)) / pw >= SUPPORT_OVERLAP;
+  if (vOv > Math.max(minH * MIN_SUPPORT, 4)) {
+    if (Math.abs(aR - bL) < CONTACT_TOL) return true;
+    if (Math.abs(bR - aL) < CONTACT_TOL) return true;
+  }
+  return false;
 }
 
-// Find the topmost surface worldY under position px with width pw
-function getTopSurfaceWorldAt(px, pw) {
-  let topWorldY = 0; // ground
-  for (let i = 0; i < GS.placedPieces.length; i++) {
-    const pl = GS.placedPieces[i];
-    if (!pl.onGround) continue;
-    const ov = overlapX(px - pw/2, px + pw/2, getPieceLeft(pl), getPieceRight(pl));
-    if (ov >= pw * SUPPORT_OVERLAP) {
-      const top = getPieceTop(pl);
-      if (top > topWorldY) topWorldY = top;
+function isOnGround(p) {
+  return Math.abs(pBot(p)) < CONTACT_TOL;
+}
+
+function isSittingOn(upper, lower) {
+  const hOv = overlapLen(pLeft(upper), pRight(upper), pLeft(lower), pRight(lower));
+  const minW = Math.min(getPiecePixW(upper), getPiecePixW(lower));
+  if (hOv < minW * MIN_SUPPORT) return false;
+  return Math.abs(pBot(upper) - pTop(lower)) < CONTACT_TOL;
+}
+
+// ── CONTACT GRAPH & CONNECTIVITY ──────────────────────────
+
+function buildContactGraph(pieces) {
+  const adj = new Map();
+  pieces.forEach(function(p) { adj.set(p, new Set()); });
+  for (let i = 0; i < pieces.length; i++) {
+    for (let j = i + 1; j < pieces.length; j++) {
+      if (areTouching(pieces[i], pieces[j])) {
+        adj.get(pieces[i]).add(pieces[j]);
+        adj.get(pieces[j]).add(pieces[i]);
+      }
     }
   }
-  return topWorldY;
+  return adj;
 }
 
-// After placing, check connectivity: each onGround piece must be reachable
-// from the ground via support links. Disconnected pieces start falling.
-function checkConnectivity() {
-  const pieces = GS.placedPieces.filter(function(pl) { return pl.onGround; });
-  if (pieces.length === 0) return;
-
-  // BFS from ground: a piece is "connected" if it is supported by ground or a connected piece
-  const connected = new Set();
-
-  // Seed: pieces resting directly on the ground
-  pieces.forEach(function(p) {
-    if (isSupportedBy(p, null)) connected.add(p);
-  });
-
-  // Iteratively mark pieces supported by already-connected pieces
-  let changed = true;
-  while (changed) {
-    changed = false;
-    pieces.forEach(function(p) {
-      if (connected.has(p)) return;
-      for (let i = 0; i < pieces.length; i++) {
-        const q = pieces[i];
-        if (!connected.has(q)) continue;
-        if (isSupportedBy(p, q)) {
-          connected.add(p);
-          changed = true;
-          break;
-        }
-      }
+function getConnectedToRoot() {
+  const settled = GS.placedPieces.filter(function(p) { return p.onGround; });
+  if (!GS.rootPiece || !GS.rootPiece.onGround || settled.length === 0) return new Set();
+  const adj     = buildContactGraph(settled);
+  const visited = new Set();
+  const queue   = [GS.rootPiece];
+  visited.add(GS.rootPiece);
+  while (queue.length > 0) {
+    var cur = queue.shift();
+    var neighbors = adj.get(cur);
+    if (!neighbors) continue;
+    neighbors.forEach(function(n) {
+      if (!visited.has(n)) { visited.add(n); queue.push(n); }
     });
   }
+  return visited;
+}
 
-  // Any piece not in connected set → falls off
-  pieces.forEach(function(p) {
+function checkConnectivity() {
+  if (!GS.rootPiece) return;
+  var connected = getConnectedToRoot();
+  var anyFell = false;
+  GS.placedPieces.forEach(function(p) {
+    if (!p.onGround) return;
     if (!connected.has(p)) {
       p.onGround = false;
-      p.fallVx   = (Math.random() - 0.5) * 3;
+      p.fallVx   = (p.x > GS.canvasW / 2 ? 1 : -1) * (1 + Math.random() * 2);
       p.fallVy   = 0;
-      p.wobble   = { ang: p.wobble ? p.wobble.ang : 0, vel: 0.15 };
-      SoundFX.fail && SoundFX.fail();
+      anyFell = true;
     }
   });
+  if (anyFell) SoundFX.fail();
 }
 
-// Stability (center-of-mass) check.
-// For each piece, compute the COM of all pieces at the same height or above.
-// If that COM falls outside the support range of the pieces below, the upper
-// group tips and falls.
+// ── SUPPORT & CENTER-OF-MASS STABILITY ────────────────────
+
+function findDirectSupports(p, pieces) {
+  var supports = [];
+  pieces.forEach(function(q) {
+    if (q === p || !q.onGround) return;
+    if (isSittingOn(p, q)) supports.push(q);
+  });
+  return supports;
+}
+
+function findPiecesAbove(start, pieces) {
+  var above = new Set();
+  var queue = [start];
+  while (queue.length > 0) {
+    var cur = queue.shift();
+    for (var i = 0; i < pieces.length; i++) {
+      var other = pieces[i];
+      if (other === start || above.has(other) || !other.onGround) continue;
+      if (isSittingOn(other, cur)) { above.add(other); queue.push(other); }
+    }
+  }
+  return above;
+}
+
 function checkStability() {
-  const cfg    = DIFF_CFG[GS.diff];
-  const stab   = GS.activePU && GS.activePU.def.id === 'stabilize';
-  if (stab) return;
-
-  // Allow a COM overhang fraction before tipping (more forgiving on easy)
-  const tolerance = { easy: 0.60, normal: 0.45, hard: 0.30 }[GS.diff];
-
-  const pieces = GS.placedPieces.filter(function(pl) { return pl.onGround; });
-  // Sort bottom to top
+  if (GS.activePU && GS.activePU.def.id === 'stabilize') return;
+  var tol    = COM_TOLERANCE[GS.diff];
+  var pieces = GS.placedPieces.filter(function(p) { return p.onGround; });
   pieces.sort(function(a, b) { return a.worldY - b.worldY; });
 
-  // For each piece, gather everything it directly/transitively supports above it
-  // and check if their combined COM is within this piece's footprint.
-  for (let i = 0; i < pieces.length; i++) {
-    const base = pieces[i];
-    const baseL = getPieceLeft(base);
-    const baseR = getPieceRight(base);
+  var tipped = false;
+  for (var i = 0; i < pieces.length && !tipped; i++) {
+    var base = pieces[i];
+    if (isOnGround(base)) continue;
 
-    // Collect the "stack" on top of base: pieces whose bottom is at/near base's top
-    // and that are horizontally overlapping base
-    const above = [];
-    for (let j = i + 1; j < pieces.length; j++) {
-      const p = pieces[j];
-      const ov = overlapX(getPieceLeft(p), getPieceRight(p), baseL, baseR);
-      if (ov > 0 && getPieceBottom(p) >= base.worldY - 2) {
-        above.push(p);
-      }
-    }
-    if (above.length === 0) continue;
+    var supports = findDirectSupports(base, pieces);
+    if (supports.length === 0) continue;
 
-    // Weighted COM of the above stack
-    let totalMass = 0, weightedX = 0;
-    above.forEach(function(p) {
-      const m = p.def.mass || 1;
-      totalMass  += m;
-      weightedX  += p.x * m;
+    var sMinX = Infinity, sMaxX = -Infinity;
+    supports.forEach(function(s) {
+      var oL = Math.max(pLeft(base), pLeft(s));
+      var oR = Math.min(pRight(base), pRight(s));
+      if (oL < oR) { if (oL < sMinX) sMinX = oL; if (oR > sMaxX) sMaxX = oR; }
     });
-    const comX = weightedX / totalMass;
+    if (sMinX >= sMaxX) continue;
 
-    // Support range: use base piece footprint + tolerance
-    const halfSupport = (baseR - baseL) / 2 * tolerance;
-    const supportMid  = (baseL + baseR) / 2;
+    var above = findPiecesAbove(base, pieces);
+    above.add(base);
 
-    if (Math.abs(comX - supportMid) > halfSupport) {
-      // The stack above base is unbalanced — tip them
-      const dir = comX > supportMid ? 1 : -1;
+    var totalMass = 0, weightedX = 0;
+    above.forEach(function(p) {
+      var m = p.def.mass || 1;
+      totalMass += m;
+      weightedX += p.x * m;
+    });
+    var comX = weightedX / totalMass;
+
+    var sMid  = (sMinX + sMaxX) / 2;
+    var sHalf = (sMaxX - sMinX) / 2 * tol;
+
+    if (Math.abs(comX - sMid) > sHalf) {
+      var dir = comX > sMid ? 1 : -1;
       above.forEach(function(p) {
         p.onGround = false;
         p.fallVx   = dir * (1.5 + Math.random() * 2);
         p.fallVy   = 0;
-        p.wobble   = { ang: dir * 0.08, vel: dir * 0.12 };
+        if (p.wobble) p.wobble.vel = dir * 0.15;
       });
-      // Visual wobble on base too
-      if (base.wobble) { base.wobble.vel += dir * 0.08; }
-      break; // one collapse cascade at a time
+      tipped = true;
+      SoundFX.fail();
     }
   }
+  if (tipped) checkConnectivity();
 }
 
+// ── SURFACE FINDING ───────────────────────────────────────
+
+function getTopSurfaceWorldAt(px, pw) {
+  var topWY = 0;
+  for (var i = 0; i < GS.placedPieces.length; i++) {
+    var pl = GS.placedPieces[i];
+    if (!pl.onGround) continue;
+    var ov = overlapLen(px - pw / 2, px + pw / 2, pLeft(pl), pRight(pl));
+    if (ov >= pw * MIN_SUPPORT) {
+      var t = pTop(pl);
+      if (t > topWY) topWY = t;
+    }
+  }
+  return topWY;
+}
+
+// ── PLACEMENT VALIDATION ──────────────────────────────────
+// Valid if: first piece, OR the landing position would touch the tower.
+
+function wouldConnectToTower(px, pw, surfaceWorldY) {
+  var settled = GS.placedPieces.filter(function(p) { return p.onGround; });
+  if (settled.length === 0) return true;
+  if (!GS.rootPiece) return true;
+
+  var cp = GS.currentPiece;
+  var ph = cp ? getPiecePixH(cp) : GS.cellPx;
+  var newBot = surfaceWorldY;
+  var newTop = surfaceWorldY + ph;
+  var newL   = px - pw / 2;
+  var newR   = px + pw / 2;
+
+  for (var i = 0; i < settled.length; i++) {
+    var q = settled[i];
+    var qL = pLeft(q), qR = pRight(q), qB = pBot(q), qT = pTop(q);
+    var hOv = overlapLen(newL, newR, qL, qR);
+    var vOv = overlapLen(newBot, newTop, qB, qT);
+    var minW = Math.min(newR - newL, qR - qL);
+    var minH = Math.min(newTop - newBot, qT - qB);
+
+    if (hOv > minW * MIN_SUPPORT) {
+      if (Math.abs(newBot - qT) < CONTACT_TOL) return true;
+      if (Math.abs(qB - newTop) < CONTACT_TOL) return true;
+    }
+    if (vOv > Math.max(minH * MIN_SUPPORT, 4)) {
+      if (Math.abs(newR - qL) < CONTACT_TOL) return true;
+      if (Math.abs(qR - newL) < CONTACT_TOL) return true;
+    }
+  }
+  return false;
+}
+
+function isPlacementValid() {
+  var p = GS.currentPiece;
+  if (!p) return false;
+  var pw = getPiecePixW(p);
+  var surface = getTopSurfaceWorldAt(p.x, pw);
+  return wouldConnectToTower(p.x, pw, surface);
+}
+
+// ── GRAVITY / FALLING CURRENT PIECE ───────────────────────
+
 function applyPhysics() {
-  const p = GS.currentPiece;
+  var p = GS.currentPiece;
   if (!p || p.onGround) return;
 
-  const cfg        = DIFF_CFG[GS.diff];
-  const slowFactor = (GS.activePU && GS.activePU.def.id === 'slowtime') ? 0.35 : 1;
-  let grav = cfg.gravity * slowFactor;
+  var cfg  = DIFF_CFG[GS.diff];
+  var slow = (GS.activePU && GS.activePU.def.id === 'slowtime') ? 0.35 : 1;
+  var grav = cfg.gravity * slow;
   if (GS.softDrop) grav *= 4;
 
   p.vy     += grav;
   p.vy      = Math.min(p.vy, 18);
   p.worldY -= p.vy;
 
-  const pw = getPiecePixW(p);
-  if (p.x - pw/2 < 4)              p.x = pw/2 + 4;
-  if (p.x + pw/2 > GS.canvasW - 4) p.x = GS.canvasW - pw/2 - 4;
+  var pw = getPiecePixW(p);
+  if (p.x - pw / 2 < 4)              p.x = pw / 2 + 4;
+  if (p.x + pw / 2 > GS.canvasW - 4) p.x = GS.canvasW - pw / 2 - 4;
 
-  const ph            = getPiecePixH(p);
-  const pieceBottom   = p.worldY - ph / 2;
-  const surfaceWorldY = getTopSurfaceWorldAt(p.x, pw);
+  var ph      = getPiecePixH(p);
+  var bottom  = p.worldY - ph / 2;
+  var surface = getTopSurfaceWorldAt(p.x, pw);
 
-  if (pieceBottom <= surfaceWorldY) {
-    landPiece(p, surfaceWorldY);
+  if (bottom <= surface) {
+    landPiece(p, surface);
   }
 }
 
+// ── LANDING ───────────────────────────────────────────────
+
 function landPiece(p, surfaceWorldY) {
-  const ph = getPiecePixH(p);
+  var ph = getPiecePixH(p);
   p.worldY   = surfaceWorldY + ph / 2;
   p.vy       = 0;
   p.onGround = true;
   p.wobble   = p.wobble || { ang: 0, vel: 0.04 };
 
-  // Quick check: is this piece actually supported?
-  // If it landed but has < SUPPORT_OVERLAP coverage, it slides off
-  const pw      = getPiecePixW(p);
-  const hasSupp = isSupportedBy(p, null) ||
-    GS.placedPieces.some(function(q) { return q.onGround && isSupportedBy(p, q); });
+  var isFirst = GS.placedPieces.filter(function(q) { return q.onGround; }).length === 0;
 
-  if (!hasSupp) {
-    // Slide off — piece gets a sideways nudge toward the gap
-    const surfaceMid = getTopSurfaceWorldAt(p.x - pw * 0.3, pw * 0.6) >
-                       getTopSurfaceWorldAt(p.x + pw * 0.3, pw * 0.6) ? -1 : 1;
-    p.onGround = false;
-    p.fallVx   = surfaceMid * (1 + Math.random());
-    p.fallVy   = 0;
+  if (isFirst) {
+    GS.rootPiece = p;
     GS.placedPieces.push(p);
     GS.blocksPlaced++;
-    SoundFX.place();
-    if (GS.mode !== 'free') checkCollapse();
-    if (!GS.running) return;
-    checkGoal();
-    if (!GS.running) return;
-    GS._lastPiecePlaced = p;
-    spawnNextPiece();
-    return;
+  } else {
+    GS.placedPieces.push(p);
+    GS.blocksPlaced++;
+
+    var connected = getConnectedToRoot();
+    if (!connected.has(p)) {
+      var dir = p.x > GS.canvasW / 2 ? 1 : -1;
+      p.onGround = false;
+      p.fallVx   = dir * (1.5 + Math.random());
+      p.fallVy   = 0;
+      showFloatMsg('⚠️ חובה להתחבר למגדל!');
+      SoundFX.fail();
+      if (GS.mode !== 'free') checkCollapse();
+      if (!GS.running) return;
+      spawnNextPiece();
+      return;
+    }
   }
 
-  GS.placedPieces.push(p);
-  GS.blocksPlaced++;
-
-  // Small landing wobble on all settled pieces
-  const cfg  = DIFF_CFG[GS.diff];
-  const mass = p.def.mass || 1;
+  var cfg  = DIFF_CFG[GS.diff];
+  var mass = p.def.mass || 1;
   GS.placedPieces.forEach(function(pl) {
     if (!pl.onGround || !pl.wobble) return;
     pl.wobble.vel += (Math.random() - 0.5) * cfg.wobble * mass * 3;
@@ -619,16 +684,15 @@ function landPiece(p, surfaceWorldY) {
   updateScoreUI();
 
   if (Math.random() < cfg.puChance) {
-    const pu = PU_DEFS[Math.floor(Math.random() * PU_DEFS.length)];
+    var pu = PU_DEFS[Math.floor(Math.random() * PU_DEFS.length)];
     GS.puQueue.push(pu);
     showFloatMsg(pu.icon + ' ' + pu.name + '!');
     SoundFX.pu();
     if (!GS.activePU) activateNextPU();
   }
 
-  // Check connectivity and stability after each placement
-  checkConnectivity();
   checkStability();
+  checkConnectivity();
 
   if (GS.mode !== 'free') checkCollapse();
   if (!GS.running) return;
@@ -638,36 +702,37 @@ function landPiece(p, surfaceWorldY) {
   spawnNextPiece();
 }
 
+// ── TOWER HEIGHT ──────────────────────────────────────────
+
 function updateTowerHeight() {
-  let maxWorldY = 0;
+  var maxWY = 0;
   GS.placedPieces.forEach(function(pl) {
     if (!pl.onGround) return;
-    const top = getPieceTop(pl);
-    if (top > maxWorldY) maxWorldY = top;
+    var t = pTop(pl);
+    if (t > maxWY) maxWY = t;
   });
-  GS.towerHeight = Math.round(maxWorldY / GS.cellPx * 10) / 10;
+  GS.towerHeight = Math.round(maxWY / GS.cellPx * 10) / 10;
   if (GS.towerHeight > GS.maxHeight) GS.maxHeight = GS.towerHeight;
   if (GS.mode === 'challenge') updateGoalUI();
 }
 
+// ── COLLAPSE CHECK ────────────────────────────────────────
+
 function checkCollapse() {
   if (GS.placedPieces.length < 2) return;
-  const cfg   = DIFF_CFG[GS.diff];
-  const total = GS.placedPieces.length;
-  const fallen = GS.placedPieces.filter(function(pl) {
-    return toCanvasY(pl.worldY) > GS.canvasH + 60
-        || pl.x < -80 || pl.x > GS.canvasW + 80;
-  }).length;
-  if (total > 2 && fallen / total >= cfg.collapseRatio) {
-    endGame('collapse');
-  }
+  var cfg     = DIFF_CFG[GS.diff];
+  var onGnd   = GS.placedPieces.filter(function(p) { return p.onGround; }).length;
+  var total   = GS.placedPieces.length;
+
+  if (GS.rootPiece && !GS.rootPiece.onGround) { endGame('collapse'); return; }
+  if (total > 2 && (total - onGnd) / total >= cfg.collapseRatio) endGame('collapse');
 }
 
-// Animate falling pieces and clean up off-screen ones
+// ── ANIMATE FALLING PIECES ────────────────────────────────
+
 function updateFallingPieces() {
   GS.placedPieces.forEach(function(pl) {
     if (pl.onGround) {
-      // Gentle visual wobble spring (cosmetic only, no tipping)
       if (!pl.wobble) pl.wobble = { ang: 0, vel: 0 };
       pl.wobble.vel += -pl.wobble.ang * 0.08;
       pl.wobble.vel *= 0.80;
@@ -675,7 +740,6 @@ function updateFallingPieces() {
       pl.wobble.ang  = Math.max(-0.18, Math.min(0.18, pl.wobble.ang));
       return;
     }
-    // Falling piece
     pl.fallVy = (pl.fallVy || 0) + 0.4;
     pl.worldY -= pl.fallVy;
     pl.x      += (pl.fallVx || 0);
@@ -685,20 +749,18 @@ function updateFallingPieces() {
     }
   });
 
-  // Remove pieces far off-screen
   GS.placedPieces = GS.placedPieces.filter(function(pl) {
     return toCanvasY(pl.worldY) < GS.canvasH + 200
         && pl.x > -300 && pl.x < GS.canvasW + 300;
   });
 }
 
-// ── CAMERA ───────────────────────────────────────────────────
+// ── CAMERA ────────────────────────────────────────────────
+
 function updateCamera() {
-  const topWorldY      = GS.towerHeight * GS.cellPx;
-  const desiredCameraY = topWorldY - GS.canvasH * 0.70 + 12;
-  if (desiredCameraY > GS.cameraY) {
-    GS.cameraY += (desiredCameraY - GS.cameraY) * 0.05;
-  }
+  var topWY        = GS.towerHeight * GS.cellPx;
+  var desiredCamY  = topWY - GS.canvasH * 0.70 + 12;
+  if (desiredCamY > GS.cameraY) GS.cameraY += (desiredCamY - GS.cameraY) * 0.05;
   if (GS.cameraY < 0) GS.cameraY = 0;
 }
 
@@ -917,23 +979,34 @@ function darken(hex) {
 }
 
 function drawGhostPiece(ctx) {
-  const p = GS.currentPiece;
+  var p = GS.currentPiece;
   if (!p || p.onGround) return;
-  const pw = getPiecePixW(p);
-  const ph = getPiecePixH(p);
-  const surfaceWorldY = getTopSurfaceWorldAt(p.x, pw);
-  const ghostWorldY   = surfaceWorldY + ph / 2;
-  const ghostCanvasY  = toCanvasY(ghostWorldY);
-  const pieceCanvasY  = toCanvasY(p.worldY);
-  if (ghostCanvasY >= pieceCanvasY) return; // ghost is below current piece
+  var pw = getPiecePixW(p);
+  var ph = getPiecePixH(p);
+  var surfaceWorldY = getTopSurfaceWorldAt(p.x, pw);
+  var ghostWorldY   = surfaceWorldY + ph / 2;
+  var ghostCanvasY  = toCanvasY(ghostWorldY);
+  var pieceCanvasY  = toCanvasY(p.worldY);
+  if (ghostCanvasY >= pieceCanvasY) return;
+
+  var valid = isPlacementValid();
 
   ctx.save();
-  ctx.globalAlpha = 0.22;
+  ctx.globalAlpha = valid ? 0.22 : 0.35;
   ctx.translate(p.x, ghostCanvasY);
-  ctx.fillStyle = p.color !== 'rainbow' ? p.color : '#aaa';
-  ctx.strokeStyle = '#fff';
-  ctx.lineWidth = 1;
+  ctx.fillStyle   = valid ? (p.color !== 'rainbow' ? p.color : '#aaa') : '#ff3333';
+  ctx.strokeStyle = valid ? '#fff' : '#ff0000';
+  ctx.lineWidth   = valid ? 1 : 2;
   drawShape(ctx, p.def.shape, pw, ph, 0, 0);
+
+  if (!valid) {
+    ctx.globalAlpha = 0.85;
+    ctx.font        = Math.round(Math.min(pw, ph) * 0.35) + 'px Arial';
+    ctx.textAlign   = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle   = '#fff';
+    ctx.fillText('✕', 0, 0);
+  }
   ctx.restore();
 }
 
@@ -1110,11 +1183,16 @@ function rotateCurrentPiece() {
 }
 
 function hardDropPiece() {
-  const p = GS.currentPiece;
+  var p = GS.currentPiece;
   if (!p || p.onGround || GS.busy || GS.paused || !GS.running) return;
-  const pw          = getPiecePixW(p);
-  const ph          = getPiecePixH(p);
-  const surfaceWorldY = getTopSurfaceWorldAt(p.x, pw);
+  if (!isPlacementValid()) {
+    showFloatMsg('⚠️ חובה להתחבר למגדל!');
+    SoundFX.fail();
+    return;
+  }
+  var pw          = getPiecePixW(p);
+  var ph          = getPiecePixH(p);
+  var surfaceWorldY = getTopSurfaceWorldAt(p.x, pw);
   p.worldY = surfaceWorldY + ph / 2;
   p.vy     = 0;
   spawnParticles(p.x, toCanvasY(surfaceWorldY), p.color !== 'rainbow' ? p.color : '#ffd700', 8);
@@ -1649,11 +1727,13 @@ function mainLoop(ts) {
     updateScoreUI();
     updateGoalUI();
 
-    // Tower/challenge mode: if current piece is still in air after all placed fell, end game
-    if (GS.mode !== 'free' && GS.placedPieces.length >= 3) {
-      const onGnd = GS.placedPieces.filter(function(pl){ return pl.onGround; }).length;
-      const total = GS.placedPieces.length;
-      if (onGnd === 0 && total >= 3) endGame('fallen');
+    // End game if root fell or all pieces are off-screen
+    if (GS.mode !== 'free' && GS.placedPieces.length >= 2) {
+      if (GS.rootPiece && !GS.rootPiece.onGround) endGame('collapse');
+      else {
+        var onGnd = GS.placedPieces.filter(function(pl){ return pl.onGround; }).length;
+        if (onGnd === 0) endGame('fallen');
+      }
     }
   }
 
