@@ -68,8 +68,6 @@ const MAX_GAME_W      = 420;    // px — game column never wider than this (mat
 const BLOCK_SIZE_FRAC = 0.22;   // block side = gameW * this  (gameW ≤ MAX_GAME_W)
 const MIN_BLOCK_PX    = 16;     // minimum block width before game ends
 
-const TRIM_ON_IMPERFECT = true; // narrow block on imperfect landing (normal/hard)
-
 // ── Combo messages ─────────────────────────────────────────
 const COMBO_MSGS = [
   { at: 2,  text: 'קומבו! x2 🔥' },
@@ -434,17 +432,6 @@ function landBlock() {
   // Camera
   updateCamera();
 
-  // Trim block width for next drop
-  if (GS.mode !== 'free' && !isPerfect && TRIM_ON_IMPERFECT && GS.diff !== 'easy') {
-    GS.blockSz = Math.max(Math.round(newW), MIN_BLOCK_PX);
-    if (GS.blockSz <= MIN_BLOCK_PX) { endGame(); return; }
-  } else if (isPerfect) {
-    // Reward: partial restore toward baseSz
-    GS.blockSz = Math.min(
-      GS.blockSz + Math.round(GS.blockSz * 0.15),
-      GS.baseSz
-    );
-  }
 
   if (isPerfect) perfectsThisGame++;
   if (GS.mode === 'challenge') checkChallengeGoal();
