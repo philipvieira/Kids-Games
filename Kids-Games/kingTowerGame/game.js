@@ -1,33 +1,21 @@
 /*
  * ════════════════════════════════════════════════════════════
- *  מלך המגדלים — game.js
- *  Inspired by classic tower-drop games (iamkun/tower_game)
+ *  מלך המגדלים — game.js   v3
  *
- *  GAMEPLAY:
- *   - A colourful block swings/slides back and forth above the tower.
- *   - Player taps/clicks to drop it.
- *   - Landing on the tower adds a floor and scores points.
- *   - Perfect centering = bonus + combo streak.
- *   - Miss (block falls off) = lose a life.
- *   - All lives gone = game over.
+ *  Core mechanic (faithful to iamkun/tower_game style):
+ *   • A crane pivot sits at the top-centre of the screen.
+ *   • A rope hangs from the pivot; a square block hangs at the end.
+ *   • The rope swings back and forth like a pendulum.
+ *   • Player taps/clicks → rope releases, block falls straight down.
+ *   • Land on tower = new floor.  Miss = lose a life.
+ *   • Perfect centre = bonus + combo streak.
  *
- *  SECTIONS:
- *   1.  Constants & Config
- *   2.  Storage
- *   3.  Game State  (GS)
- *   4.  Audio  (SoundFX + BgMusic)
- *   5.  Challenge Level Definitions
- *   6.  Block Colours
- *   7.  Core Physics — swing, drop, land, miss
- *   8.  Scoring
- *   9.  Rendering  (Canvas)
- *  10.  Particles & Effects
- *  11.  Game Flow  (start, pause, end, win)
- *  12.  HUD / UI Updates
- *  13.  Input Handling
- *  14.  Menu Wiring
- *  15.  Main Loop
- *  16.  Boot / Init
+ *  FIXES IN THIS VERSION:
+ *   1. Music never stops on restart / game-over / menu (only pauses & resumes).
+ *   2. Blocks are SQUARE (blockW === blockH, sized ~25% canvas width).
+ *   3. Blocks start at the top of the screen, hanging from the crane.
+ *   4. Real pendulum crane drawn: pivot + rope + block.
+ *
  * ════════════════════════════════════════════════════════════
  */
 
@@ -37,19 +25,21 @@
 // 1. CONSTANTS & CONFIG
 // ════════════════════════════════════════════════════════════
 
-// ── Difficulty tuning ──────────────────────────────────────
-// Edit these values to adjust feel for each difficulty level.
+// ── Difficulty ─────────────────────────────────────────────
+// Edit these to tune gameplay.
 const DIFF_CFG = {
   easy: {
-    swingSpeed:   1.4,    // pixels per frame the block moves sideways
-    perfectZone:  0.28,   // fraction of block width counted as "perfect"
-    lives:        4,      // starting hearts
-    scoreSuccess: 20,     // points for a normal successful landing
-    scorePerfect: 50,     // points for a perfect landing (before streak)
+    swingAmp:     0.55,   // pendulum amplitude (radians) — max swing angle
+    swingSpeed:   0.030,  // angular speed (rad/frame) for Math.sin(t * swingSpeed)
+    perfectZone:  0.28,   // fraction of block width = perfect zone
+    lives:        4,
+    scoreSuccess: 20,
+    scorePerfect: 50,
     label:        'קל',
   },
   normal: {
-    swingSpeed:   2.2,
+    swingAmp:     0.65,
+    swingSpeed:   0.045,
     perfectZone:  0.20,
     lives:        3,
     scoreSuccess: 25,
@@ -57,7 +47,8 @@ const DIFF_CFG = {
     label:        'רגיל',
   },
   hard: {
-    swingSpeed:   3.4,
+    swingAmp:     0.80,
+    swingSpeed:   0.062,
     perfectZone:  0.12,
     lives:        3,
     scoreSuccess: 30,
@@ -66,19 +57,16 @@ const DIFF_CFG = {
   },
 };
 
-// Speed ramps up as the tower grows
-const SPEED_RAMP_PER_FLOOR = 0.025;
-const MAX_SPEED_MULT        = 2.8;
+// Speed and amplitude ramp as floors increase
+const SPEED_RAMP   = 0.0012;  // added to swingSpeed per floor
+const AMP_RAMP     = 0.005;   // added to swingAmp per floor
+const MAX_SWING    = 0.92;    // max amplitude cap (rad)
 
-// Block dimensions (fraction of canvas)
-const BLOCK_W_FRAC = 0.36;
-const BLOCK_H_FRAC = 0.072;
+// Block: SQUARE, sized as fraction of canvas width
+const BLOCK_SIZE_FRAC = 0.22;   // block side = canvasW * this
+const MIN_BLOCK_PX    = 16;     // minimum block width before game ends
 
-// Minimum block width before game ends (tower too thin)
-const MIN_BLOCK_W_PX = 18;
-
-// Trim imperfect landings (narrow/hard modes)
-const TRIM_ON_IMPERFECT = true;
+const TRIM_ON_IMPERFECT = true; // narrow block on imperfect landing (normal/hard)
 
 // ── Combo messages ─────────────────────────────────────────
 const COMBO_MSGS = [
@@ -92,13 +80,13 @@ const COMBO_MSGS = [
 // 2. STORAGE
 // ════════════════════════════════════════════════════════════
 
-const STORAGE_KEY = 'kingTower_v1';
+const STORAGE_KEY = 'kingTower_v3';
 
 function loadStorage() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch(e) { return {}; }
 }
-function saveStorage(data) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
+function saveStorage(d) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); } catch(e) {}
 }
 function getBestScore(mode, diff) {
   var s = loadStorage();
@@ -106,84 +94,88 @@ function getBestScore(mode, diff) {
 }
 function setBestScore(mode, diff, score) {
   var s = loadStorage();
-  if (!s.bests) s.bests = {};
-  if (!s.bests[mode]) s.bests[mode] = {};
-  if (score > (s.bests[mode][diff] || 0)) { s.bests[mode][diff] = score; saveStorage(s); return true; }
+  if (!s.bests)        s.bests = {};
+  if (!s.bests[mode])  s.bests[mode] = {};
+  if (score > (s.bests[mode][diff] || 0)) {
+    s.bests[mode][diff] = score; saveStorage(s); return true;
+  }
   return false;
 }
-function getChallengeProgress() {
-  return loadStorage().challengeProgress || 0;
-}
-function setChallengeProgress(lvl) {
+function getChallengeProgress() { return loadStorage().challengeProgress || 0; }
+function setChallengeProgress(n) {
   var s = loadStorage();
-  s.challengeProgress = Math.max(s.challengeProgress || 0, lvl);
+  s.challengeProgress = Math.max(s.challengeProgress || 0, n);
   saveStorage(s);
 }
 function getSavedDiff() { return loadStorage().diff || 'normal'; }
-function saveDiff(diff) { var s = loadStorage(); s.diff = diff; saveStorage(s); }
+function saveDiff(d)    { var s = loadStorage(); s.diff = d; saveStorage(s); }
 
 // ════════════════════════════════════════════════════════════
-// 3. GAME STATE  (GS)
+// 3. GAME STATE
 // ════════════════════════════════════════════════════════════
 
 const GS = {
-  mode: 'tower',
-  diff: 'normal',
+  mode:    'tower',
+  diff:    'normal',
   soundOn: true,
 
   running:  false,
   paused:   false,
-  dropping: false,
+  dropping: false,   // true while block is in free-fall
 
-  // Canvas (set by initCanvas / resizeCanvas)
+  // Canvas dimensions (updated by resizeCanvas)
   canvasW: 360,
   canvasH: 600,
 
-  // Swing state
-  blockX:   0,      // left edge of active block (canvas X, not affected by camera)
-  swingDir: 1,
+  // Block (always square)
+  blockSz:    80,   // side length in px (= blockW = blockH)
 
-  // Drop
-  dropY:  0,        // top-edge Y of falling block in WORLD coords
-  dropVY: 0,
+  // Crane / pendulum
+  pivotX:  180,     // pivot is fixed at centre-top
+  pivotY:  0,       // canvas Y — set to a few px below top
+  ropeLen: 200,     // pixels from pivot to block centre
+  angle:   0,       // current pendulum angle (radians, 0 = straight down)
+  swingT:  0,       // time accumulator for Math.sin oscillation
 
-  // Block dimensions (px)
-  blockW: 120,
-  blockH: 40,
+  // When dropping, block falls straight down from release point
+  dropX:   0,       // centre X of falling block (fixed at release)
+  dropY:   0,       // top-edge Y of falling block in WORLD coords
+  dropVY:  0,
 
+  // Block colour
   blockColor: '#60a5fa',
   nextColor:  '#f87171',
 
   // Scoring
   score: 0,
   lives: 3,
-  floor: 0,   // floors successfully placed
+  floor: 0,
   combo: 0,
 
   // Challenge
   challengeLevel: 0,
 
+  // Tower floors  { x, w, worldY, color }
+  //   worldY = bottom of floor in world coords (0 = ground, upward positive)
+  floors: [],
+
+  // Camera (smooth scroll)
+  cameraY:       0,
+  targetCameraY: 0,
+
   // Particles
   particles: [],
-
-  // WORLD coordinate system:
-  //   worldY=0 is the top of the ground (base of tower).
-  //   Each floor occupies blockH pixels upward.
-  //   floor[i].worldY = i * blockH  (bottom of that floor from ground)
-  //   cameraY = world Y that maps to the BOTTOM of the canvas.
-
-  // floors[] stores WORLD positions so they don't drift with camera
-  floors: [],   // { x, w, worldY, color }
-                //   x,w  — horizontal (no camera, canvas coords)
-                //   worldY — bottom of this floor, measured UP from ground (0 = ground level)
-
-  // Camera: how many world pixels to shift up
-  cameraY: 0,           // world Y at canvas bottom (starts 0)
-  targetCameraY: 0,
 
   loopId: null,
 };
 
+// World → canvas Y   (worldY=0 is ground at canvas bottom)
+function toCanvasY(wy) { return GS.canvasH - (wy - GS.cameraY); }
+
+// Current tower top in world coords
+function towerTopWorld() { return GS.floor * GS.blockSz; }
+
+// ─────────────────────────────────────────────────────────────
 function resetRuntime() {
   GS.running  = false;
   GS.paused   = false;
@@ -195,23 +187,42 @@ function resetRuntime() {
   GS.particles= [];
   GS.cameraY        = 0;
   GS.targetCameraY  = 0;
+  GS.swingT         = 0;
+  GS.angle          = 0;
   if (GS.loopId) { cancelAnimationFrame(GS.loopId); GS.loopId = null; }
-}
-
-// World → canvas Y conversion
-// worldY=0 is ground; canvas Y = canvasH - (worldY - cameraY)
-function toCanvasY(worldY) {
-  return GS.canvasH - (worldY - GS.cameraY);
 }
 
 // ════════════════════════════════════════════════════════════
 // 4. AUDIO
 // ════════════════════════════════════════════════════════════
 
+// BgMusic: uses HTML Audio, never fully stopped — only paused/resumed.
+// This means music continues seamlessly on restart and returns from menu.
+const BgMusic = (() => {
+  const aud = new Audio('assets/TowerMusic.mp3');
+  aud.loop   = true;
+  aud.volume = 0.35;
+  var started = false;
+  return {
+    // Called once on first user gesture
+    start()    {
+      if (!started) { started = true; aud.play().catch(function(){}); }
+      else          { aud.play().catch(function(){}); }
+    },
+    pause()    { aud.pause(); },
+    resume()   { if (GS.soundOn) aud.play().catch(function(){}); },
+    toggle(on) { on ? this.resume() : this.pause(); },
+    mute(on)   { aud.muted = !on; },
+  };
+})();
+
+// SoundFX: synthesised, no file dependency
 const SoundFX = (() => {
   let actx = null, unlocked = false;
   function getCtx() {
-    if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {} }
+    if (!actx) {
+      try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
+    }
     return actx;
   }
   function unlock() {
@@ -220,7 +231,7 @@ const SoundFX = (() => {
     if (c.state === 'suspended') c.resume();
     unlocked = true;
     document.getElementById('audio-banner').style.display = 'none';
-    BgMusic.play();
+    BgMusic.start();
   }
   function beep(freq, dur, type, vol) {
     if (!GS.soundOn) return;
@@ -238,43 +249,29 @@ const SoundFX = (() => {
   }
   return {
     unlock,
-    land()    { beep(480, 0.08, 'sine', 0.18); },
-    perfect() { beep(660,0.08,'sine',0.16); setTimeout(function(){ beep(880,0.1,'sine',0.14); },70); },
-    combo()   { [660,784,880,1047].forEach(function(f,i){ setTimeout(function(){ beep(f,0.08,'sine',0.14); },i*55); }); },
-    miss()    { beep(220, 0.2, 'sawtooth', 0.10); },
-    gameover(){ beep(180, 0.5, 'sawtooth', 0.12); },
-    win()     { [523,659,784,1047,1319].forEach(function(f,i){ setTimeout(function(){ beep(f,0.12,'sine',0.15); },i*100); }); },
-  };
-})();
-
-const BgMusic = (() => {
-  const aud = new Audio('assets/TowerMusic.mp3');
-  aud.loop   = true;
-  aud.volume = 0.35;
-  return {
-    play()     { if (GS.soundOn) aud.play().catch(function(){}); },
-    stop()     { aud.pause(); aud.currentTime = 0; },
-    pause()    { aud.pause(); },
-    resume()   { if (GS.soundOn) aud.play().catch(function(){}); },
-    toggle(on) { on ? this.resume() : this.pause(); },
+    land()     { beep(480, 0.08, 'sine', 0.18); },
+    perfect()  { beep(660, 0.08, 'sine', 0.16); setTimeout(function(){ beep(880, 0.10, 'sine', 0.14); }, 70); },
+    combo()    { [660,784,880,1047].forEach(function(f,i){ setTimeout(function(){ beep(f,0.08,'sine',0.14); }, i*55); }); },
+    miss()     { beep(220, 0.20, 'sawtooth', 0.10); },
+    gameover() { beep(180, 0.50, 'sawtooth', 0.12); },
+    win()      { [523,659,784,1047,1319].forEach(function(f,i){ setTimeout(function(){ beep(f,0.12,'sine',0.15); }, i*100); }); },
   };
 })();
 
 // ════════════════════════════════════════════════════════════
-// 5. CHALLENGE LEVEL DEFINITIONS
+// 5. CHALLENGE LEVELS
 // ════════════════════════════════════════════════════════════
 
 const CHALLENGE_LEVELS = [
-  { label: 'שלב 1', type: 'floors',   target: 5,   desc: 'הגע ל-5 קומות'                              },
-  { label: 'שלב 2', type: 'floors',   target: 8,   desc: 'הגע ל-8 קומות'                              },
-  { label: 'שלב 3', type: 'perfects', target: 2,   desc: 'בצע 2 נחיתות מושלמות'                       },
-  { label: 'שלב 4', type: 'score',    target: 300, desc: 'הגע ל-300 ניקוד'                             },
+  { label: 'שלב 1', type: 'floors',   target: 5,   desc: 'הגע ל-5 קומות'                             },
+  { label: 'שלב 2', type: 'floors',   target: 8,   desc: 'הגע ל-8 קומות'                             },
+  { label: 'שלב 3', type: 'perfects', target: 2,   desc: 'בצע 2 נחיתות מושלמות'                      },
+  { label: 'שלב 4', type: 'score',    target: 300, desc: 'הגע ל-300 ניקוד'                            },
   { label: 'שלב 5', type: 'survive',  target: 10,  maxLost: 1, desc: 'הגע ל-10 קומות, אבד לב אחד לכל היותר' },
-  { label: 'שלב 6', type: 'perfects', target: 4,   desc: 'בצע 4 נחיתות מושלמות'                       },
-  { label: 'שלב 7', type: 'floors',   target: 15,  desc: 'הגע ל-15 קומות'                             },
-  { label: 'שלב 8', type: 'score',    target: 600, desc: 'הגע ל-600 ניקוד'                             },
+  { label: 'שלב 6', type: 'perfects', target: 4,   desc: 'בצע 4 נחיתות מושלמות'                      },
+  { label: 'שלב 7', type: 'floors',   target: 15,  desc: 'הגע ל-15 קומות'                            },
+  { label: 'שלב 8', type: 'score',    target: 600, desc: 'הגע ל-600 ניקוד'                            },
 ];
-
 var perfectsThisGame = 0;
 
 // ════════════════════════════════════════════════════════════
@@ -282,71 +279,92 @@ var perfectsThisGame = 0;
 // ════════════════════════════════════════════════════════════
 
 const BLOCK_COLORS = [
-  '#60a5fa', '#f87171', '#4ade80', '#facc15',
-  '#c084fc', '#fb923c', '#34d399', '#f472b6',
+  '#60a5fa','#f87171','#4ade80','#facc15',
+  '#c084fc','#fb923c','#34d399','#f472b6',
 ];
 var colorIdx = 0;
-function nextBlockColor() {
+function nextColor() {
   colorIdx = (colorIdx + 1) % BLOCK_COLORS.length;
   return BLOCK_COLORS[colorIdx];
 }
 
 // ════════════════════════════════════════════════════════════
-// 7. CORE PHYSICS — swing, drop, land, miss
+// 7. CRANE / PENDULUM PHYSICS
 // ════════════════════════════════════════════════════════════
 
-// Tower top in WORLD coords (worldY measured up from ground)
-function getTowerTopWorld() {
-  return GS.floor * GS.blockH;
+// Position of the hanging block centre (canvas coords) while swinging
+function blockCentreCanvas() {
+  // Block hangs at end of rope from pivot
+  var bx = GS.pivotX + Math.sin(GS.angle) * GS.ropeLen;
+  var by = GS.pivotY + Math.cos(GS.angle) * GS.ropeLen;
+  return { x: bx, y: by };
 }
 
-// Spawn a new block ready to swing
+// Initialise a new block at the crane
 function initBlock() {
-  GS.dropping  = false;
-  GS.dropVY    = 0;
+  GS.dropping   = false;
+  GS.dropVY     = 0;
   GS.blockColor = GS.nextColor || BLOCK_COLORS[0];
-  GS.nextColor  = nextBlockColor();
-  GS.blockX     = GS.canvasW * 0.08;   // start near left edge
-  GS.swingDir   = 1;
-
-  // dropY starts above the tower top (in world coords, upward from ground)
-  GS.dropY = getTowerTopWorld() + GS.blockH + 60;
+  GS.nextColor  = nextColor();
+  // Reset swing angle to one side so it starts moving
+  GS.angle      = getCfg().swingAmp;
+  // swingT continues — don't reset, keeps motion smooth between blocks
 }
 
-// Update swing left/right
+function getCfg() { return DIFF_CFG[GS.diff]; }
+
+// Speed/amp ramp per floor
+function currentSwingSpeed() {
+  return Math.min(getCfg().swingSpeed + GS.floor * SPEED_RAMP, 0.12);
+}
+function currentSwingAmp() {
+  return Math.min(getCfg().swingAmp + GS.floor * AMP_RAMP, MAX_SWING);
+}
+
+// Advance pendulum one frame
 function updateSwing() {
-  var cfg    = DIFF_CFG[GS.diff];
-  var speed  = cfg.swingSpeed * getSpeedMult();
-  var leftB  = 0;
-  var rightB = GS.canvasW - GS.blockW;
-
-  GS.blockX += speed * GS.swingDir;
-  if (GS.blockX >= rightB) { GS.blockX = rightB; GS.swingDir = -1; }
-  if (GS.blockX <= leftB)  { GS.blockX = leftB;  GS.swingDir =  1; }
+  GS.swingT += currentSwingSpeed();
+  GS.angle   = Math.sin(GS.swingT) * currentSwingAmp();
 }
 
-function getSpeedMult() {
-  return Math.min(MAX_SPEED_MULT, 1 + GS.floor * SPEED_RAMP_PER_FLOOR);
+// Release block — it falls straight down from release point
+function handleDrop() {
+  if (!GS.running || GS.paused || GS.dropping) return;
+  SoundFX.unlock();
+  GS.dropping = true;
+
+  var pos = blockCentreCanvas();
+  // Store release X (centre) in canvas coords (stays fixed horizontally)
+  GS.dropX  = pos.x;
+  // dropY = world coord of block CENTRE at release
+  // canvas Y of block centre = pos.y
+  // world Y = canvasH - pos.y + cameraY
+  GS.dropY  = GS.canvasH - pos.y + GS.cameraY;
+  GS.dropVY = 0;
 }
 
-// Apply gravity while block is falling
+// ── Drop physics ──────────────────────────────────────────
 function updateDrop() {
-  GS.dropVY += 0.55;
-  GS.dropVY  = Math.min(GS.dropVY, 22);
-  GS.dropY  -= GS.dropVY;   // world Y decreases as block falls downward
+  GS.dropVY  += 0.55;
+  GS.dropVY   = Math.min(GS.dropVY, 24);
+  GS.dropY   -= GS.dropVY;   // world Y decreases as block falls
 
-  // Has the block's bottom reached the tower top?
-  var towerTopWorld = getTowerTopWorld();
-  if (GS.dropY <= towerTopWorld) {
+  // Bottom of falling block in world coords
+  var blockBot = GS.dropY - GS.blockSz / 2;
+
+  if (blockBot <= towerTopWorld()) {
     landBlock();
   }
 }
 
-// Land the block onto the tower
+// ── Land ──────────────────────────────────────────────────
 function landBlock() {
-  var blockCX = GS.blockX + GS.blockW / 2;
+  // Block left edge in canvas = dropX - blockSz/2
+  var blockLeft  = GS.dropX - GS.blockSz / 2;
+  var blockRight = GS.dropX + GS.blockSz / 2;
+  var blockCX    = GS.dropX;
 
-  // Tower top surface width/centre
+  // Tower top surface
   var towerCX, towerW;
   if (GS.floors.length === 0) {
     towerCX = GS.canvasW / 2;
@@ -357,13 +375,11 @@ function landBlock() {
     towerW  = top.w;
   }
 
-  // Overlap
-  var blockL   = GS.blockX;
-  var blockR   = GS.blockX + GS.blockW;
+  // Overlap between block and tower top
   var towerL   = towerCX - towerW / 2;
   var towerR   = towerCX + towerW / 2;
-  var overlapL = Math.max(blockL, towerL);
-  var overlapR = Math.min(blockR, towerR);
+  var overlapL = Math.max(blockLeft, towerL);
+  var overlapR = Math.min(blockRight, towerR);
   var overlap  = overlapR - overlapL;
 
   if (overlap <= 4) {
@@ -374,41 +390,46 @@ function landBlock() {
   // New floor x/w
   var newW, newX;
   if (GS.mode === 'free') {
-    // Free mode: no trimming — keep full block width
-    newW = GS.blockW;
+    newW = GS.blockSz;
     newX = Math.max(0, Math.min(GS.canvasW - newW, blockCX - newW / 2));
   } else {
     newW = overlap;
     newX = overlapL;
   }
 
-  // Perfect check
+  // Perfect?
   var offset    = Math.abs(blockCX - towerCX);
-  var cfg       = DIFF_CFG[GS.diff];
-  var isPerfect = offset < GS.blockW * cfg.perfectZone;
+  var cfg       = getCfg();
+  var isPerfect = offset < GS.blockSz * cfg.perfectZone;
 
-  // Store floor in WORLD coords
-  var floorWorldY = getTowerTopWorld(); // bottom of new floor = current tower top
+  // Push floor (stored in world coords)
+  var floorWorldY = towerTopWorld();
   GS.floors.push({ x: newX, w: newW, worldY: floorWorldY, color: GS.blockColor });
   GS.floor++;
 
-  // Scoring + effects
+  // Score + sounds + particles
   scoreBlock(isPerfect, offset, towerW);
-  var floorMidWorld = floorWorldY + GS.blockH / 2;
-  spawnParticles(blockCX, toCanvasY(floorMidWorld), GS.blockColor, isPerfect ? 14 : 8);
-  if (isPerfect) { if (GS.combo > 1) SoundFX.combo(); else SoundFX.perfect(); }
-  else SoundFX.land();
+  var midY = toCanvasY(floorWorldY + GS.blockSz / 2);
+  spawnParticles(blockCX, midY, GS.blockColor, isPerfect ? 16 : 8);
+  if (isPerfect) {
+    if (GS.combo > 1) SoundFX.combo(); else SoundFX.perfect();
+  } else {
+    SoundFX.land();
+  }
 
-  // Camera: keep tower top in upper portion of screen
+  // Camera
   updateCamera();
 
-  // Trim block width for next placement
+  // Trim block width for next drop
   if (GS.mode !== 'free' && !isPerfect && TRIM_ON_IMPERFECT && GS.diff !== 'easy') {
-    GS.blockW = Math.max(newW, MIN_BLOCK_W_PX);
-    if (GS.blockW <= MIN_BLOCK_W_PX) { endGame(); return; }
+    GS.blockSz = Math.max(Math.round(newW), MIN_BLOCK_PX);
+    if (GS.blockSz <= MIN_BLOCK_PX) { endGame(); return; }
   } else if (isPerfect) {
-    // Reward: restore some width
-    GS.blockW = Math.min(GS.blockW + Math.round(GS.blockH * 0.5), Math.round(GS.canvasW * BLOCK_W_FRAC));
+    // Reward: partial restore
+    GS.blockSz = Math.min(
+      GS.blockSz + Math.round(GS.blockSz * 0.15),
+      Math.round(GS.canvasW * BLOCK_SIZE_FRAC)
+    );
   }
 
   if (isPerfect) perfectsThisGame++;
@@ -419,13 +440,13 @@ function landBlock() {
   updateHUD();
 }
 
-// Miss: block fell off the tower
+// ── Miss ──────────────────────────────────────────────────
 function missBlock() {
   GS.lives--;
   GS.combo = 0;
   SoundFX.miss();
   showFloatMsg('אוי! -לב 💔');
-  spawnParticles(GS.blockX + GS.blockW / 2, GS.canvasH * 0.5, '#f87171', 10);
+  spawnParticles(GS.dropX, GS.canvasH * 0.55, '#f87171', 12);
   updateHUD();
 
   if (GS.lives <= 0) { endGame(); return; }
@@ -437,9 +458,8 @@ function missBlock() {
 // ════════════════════════════════════════════════════════════
 
 function scoreBlock(isPerfect, offset, towerW) {
-  var cfg = DIFF_CFG[GS.diff];
+  var cfg = getCfg();
   var pts;
-
   if (isPerfect) {
     GS.combo++;
     pts = cfg.scorePerfect + (GS.combo - 1) * 25;
@@ -451,17 +471,16 @@ function scoreBlock(isPerfect, offset, towerW) {
   } else {
     GS.combo = 0;
     pts = cfg.scoreSuccess;
-    var closeness = towerW > 0 ? 1 - (offset / (towerW / 2)) : 0;
-    if (closeness > 0.7) { pts += 10; showFloatMsg('יפה! +' + pts + ' 👍'); }
+    var close = towerW > 0 ? 1 - offset / (towerW / 2) : 0;
+    if (close > 0.7) { pts += 10; showFloatMsg('יפה! +' + pts + ' 👍'); }
     else showFloatMsg('+' + pts);
   }
-
   GS.score += pts;
   updateScoreUI();
 }
 
 // ════════════════════════════════════════════════════════════
-// 9. RENDERING  (Canvas)
+// 9. RENDERING
 // ════════════════════════════════════════════════════════════
 
 var canvas, ctx;
@@ -474,7 +493,6 @@ function initCanvas() {
 
 function resizeCanvas() {
   if (!canvas) return;
-
   var hud  = document.getElementById('hud');
   var goal = document.getElementById('goal-bar');
   var hudH  = hud  ? hud.offsetHeight  : 52;
@@ -482,195 +500,233 @@ function resizeCanvas() {
 
   canvas.width  = window.innerWidth;
   canvas.height = Math.max(200, window.innerHeight - hudH - goalH);
-  GS.canvasW    = canvas.width;
-  GS.canvasH    = canvas.height;
+  GS.canvasW = canvas.width;
+  GS.canvasH = canvas.height;
 
-  GS.blockW = Math.round(GS.canvasW * BLOCK_W_FRAC);
-  GS.blockH = Math.max(22, Math.round(GS.canvasH * BLOCK_H_FRAC));
+  // Block is SQUARE — side = fraction of canvas width
+  GS.blockSz = Math.max(MIN_BLOCK_PX, Math.round(GS.canvasW * BLOCK_SIZE_FRAC));
+
+  // Crane pivot: centre-top, a few px below top edge
+  GS.pivotX = Math.round(GS.canvasW / 2);
+  GS.pivotY = 8;
+
+  // Rope length: enough to hang the block near the top third of the canvas
+  GS.ropeLen = Math.round(GS.canvasH * 0.28);
 }
 
 // ── Camera ────────────────────────────────────────────────
 function updateCamera() {
-  // Keep tower top at ~30% from canvas top
-  var towerTopWorld  = getTowerTopWorld();
-  var desiredCanvasY = GS.canvasH * 0.30;
-  // toCanvasY(towerTopWorld) = canvasH - (towerTopWorld - cameraY)
-  // We want that = desiredCanvasY
-  // So: cameraY = towerTopWorld - (canvasH - desiredCanvasY)
-  GS.targetCameraY = Math.max(0, towerTopWorld - (GS.canvasH - desiredCanvasY));
+  var ttw = towerTopWorld();
+  // Keep tower top at ~28% from canvas top
+  GS.targetCameraY = Math.max(0, ttw - (GS.canvasH * 0.72));
 }
-
 function applyCamera() {
-  GS.cameraY += (GS.targetCameraY - GS.cameraY) * 0.08;
+  GS.cameraY += (GS.targetCameraY - GS.cameraY) * 0.07;
 }
 
-// ── Render ────────────────────────────────────────────────
+// ── Main render ───────────────────────────────────────────
 function renderFrame() {
   if (!ctx) return;
   ctx.clearRect(0, 0, GS.canvasW, GS.canvasH);
 
-  // Sky gradient
-  var sky = ctx.createLinearGradient(0, 0, 0, GS.canvasH);
-  sky.addColorStop(0, '#87ceeb');
-  sky.addColorStop(1, '#3a8bc7');
-  ctx.fillStyle = sky;
-  ctx.fillRect(0, 0, GS.canvasW, GS.canvasH);
-
+  drawSky();
   drawClouds();
   drawGround();
 
-  for (var i = 0; i < GS.floors.length; i++) {
-    drawFloor(GS.floors[i]);
-  }
+  for (var i = 0; i < GS.floors.length; i++) drawFloor(GS.floors[i]);
 
   if (GS.running) {
-    drawActiveBlock();
-    if (!GS.dropping) drawSwingIndicator();
+    if (GS.dropping) drawFallingBlock();
+    else             drawCrane();
   }
 
   updateAndDrawParticles();
+
+  // Drop hint when not yet dropping
+  if (GS.running && !GS.dropping) drawDropHint();
+}
+
+// ── Sky ───────────────────────────────────────────────────
+function drawSky() {
+  var g = ctx.createLinearGradient(0, 0, 0, GS.canvasH);
+  g.addColorStop(0,   '#1a3a5c');
+  g.addColorStop(0.5, '#3a7bbf');
+  g.addColorStop(1,   '#6cb4e4');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, GS.canvasW, GS.canvasH);
 }
 
 // ── Ground ────────────────────────────────────────────────
 function drawGround() {
-  // groundSurface is world Y = 0
-  var groundCanvasY = toCanvasY(0);  // canvas Y of ground top
-
-  // Grass strip
+  var gy = toCanvasY(0);  // canvas Y of ground surface
+  if (gy > GS.canvasH) return;
   ctx.fillStyle = '#4ade80';
-  ctx.fillRect(0, groundCanvasY, GS.canvasW, 14);
-
-  // Earth below
+  ctx.fillRect(0, gy, GS.canvasW, 16);
   ctx.fillStyle = '#166534';
-  ctx.fillRect(0, groundCanvasY + 14, GS.canvasW, GS.canvasH - groundCanvasY - 14);
+  ctx.fillRect(0, gy + 16, GS.canvasW, GS.canvasH);
 }
 
-// ── Tower floors ───────────────────────────────────────────
+// ── Tower floors ──────────────────────────────────────────
 function drawFloor(fl) {
-  // fl.worldY = bottom of floor in world coords
-  var botCanvas = toCanvasY(fl.worldY);          // canvas Y of floor bottom
-  var topCanvas = toCanvasY(fl.worldY + GS.blockH); // canvas Y of floor top
+  var topCanvas = toCanvasY(fl.worldY + GS.blockSz);
+  var botCanvas = toCanvasY(fl.worldY);
+  if (topCanvas > GS.canvasH || botCanvas < 0) return;
 
-  if (topCanvas > GS.canvasH || botCanvas < 0) return; // cull off-screen
-
-  var x = fl.x, w = fl.w, h = GS.blockH;
+  var x = fl.x, w = fl.w, h = GS.blockSz;
 
   // Shadow
   ctx.save();
-  ctx.globalAlpha = 0.18;
+  ctx.globalAlpha = 0.22;
   ctx.fillStyle = '#000';
-  roundRect(ctx, x + 3, topCanvas + 3, w, h, 8); ctx.fill();
+  drawBlock(x + 4, topCanvas + 4, w, h, 8);
+  ctx.fill();
   ctx.restore();
 
-  // Block body
+  // Body
   ctx.fillStyle = fl.color;
-  roundRect(ctx, x, topCanvas, w, h, 8); ctx.fill();
+  drawBlock(x, topCanvas, w, h, 8);
+  ctx.fill();
 
-  // Shine
+  // Top shine
   ctx.save();
-  ctx.globalAlpha = 0.35;
+  ctx.globalAlpha = 0.38;
   ctx.fillStyle = '#fff';
-  roundRect(ctx, x + 4, topCanvas + 4, w - 8, h * 0.38, 5); ctx.fill();
+  drawBlock(x + 4, topCanvas + 4, w - 8, h * 0.40, 5);
+  ctx.fill();
   ctx.restore();
 
-  // Edge stroke
+  // Stroke
   ctx.strokeStyle = darken(fl.color);
-  ctx.lineWidth = 2;
+  ctx.lineWidth   = 2;
   ctx.globalAlpha = 1;
-  roundRect(ctx, x, topCanvas, w, h, 8); ctx.stroke();
+  drawBlock(x, topCanvas, w, h, 8);
+  ctx.stroke();
 }
 
-// ── Active (swinging / falling) block ─────────────────────
-function drawActiveBlock() {
-  var x = GS.blockX;
-  var topCanvas;
+// ── Crane (pivot + rope + swinging block) ─────────────────
+function drawCrane() {
+  var pos = blockCentreCanvas();
+  var bx  = pos.x;
+  var by  = pos.y;
+  var sz  = GS.blockSz;
 
-  if (GS.dropping) {
-    // dropY is the BOTTOM of the falling block in world coords (decreases as it falls)
-    // Wait — dropY is top in world: decreasing means falling. Let's use top of block.
-    topCanvas = toCanvasY(GS.dropY + GS.blockH);
-  } else {
-    // Swing: hover 55px canvas above tower top
-    var towerTopCanvas = toCanvasY(getTowerTopWorld() + GS.blockH);
-    topCanvas = towerTopCanvas - GS.blockH - 55;
-  }
-
-  var w = GS.blockW, h = GS.blockH;
-
+  // Crane arm: horizontal bar across top
   ctx.save();
-  ctx.globalAlpha = 0.18;
-  ctx.fillStyle = '#000';
-  roundRect(ctx, x + 3, topCanvas + 3, w, h, 8); ctx.fill();
+  ctx.strokeStyle = '#8b6914';
+  ctx.lineWidth   = 6;
+  ctx.lineCap     = 'round';
+  ctx.beginPath();
+  ctx.moveTo(GS.canvasW * 0.15, GS.pivotY + 2);
+  ctx.lineTo(GS.canvasW * 0.85, GS.pivotY + 2);
+  ctx.stroke();
+
+  // Pivot circle
+  ctx.fillStyle = '#f59e0b';
+  ctx.beginPath();
+  ctx.arc(GS.pivotX, GS.pivotY + 2, 7, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#92400e';
+  ctx.lineWidth   = 2;
+  ctx.stroke();
+
+  // Rope
+  ctx.strokeStyle = '#d97706';
+  ctx.lineWidth   = 3;
+  ctx.lineCap     = 'round';
+  ctx.beginPath();
+  ctx.moveTo(GS.pivotX, GS.pivotY + 2);
+  ctx.lineTo(bx, by);
+  ctx.stroke();
   ctx.restore();
 
-  ctx.fillStyle = GS.blockColor;
-  roundRect(ctx, x, topCanvas, w, h, 8); ctx.fill();
-
-  ctx.save();
-  ctx.globalAlpha = 0.35;
-  ctx.fillStyle = '#fff';
-  roundRect(ctx, x + 4, topCanvas + 4, w - 8, h * 0.38, 5); ctx.fill();
-  ctx.restore();
-
-  ctx.strokeStyle = darken(GS.blockColor);
-  ctx.lineWidth = 2;
-  ctx.globalAlpha = 1;
-  roundRect(ctx, x, topCanvas, w, h, 8); ctx.stroke();
+  // The hanging block (square)
+  drawColorBlock(bx - sz / 2, by - sz / 2, sz, sz, GS.blockColor);
 }
 
-// ── Swing indicator (downward arrow above block) ───────────
-function drawSwingIndicator() {
-  var towerTopCanvas = toCanvasY(getTowerTopWorld() + GS.blockH);
-  var arrowY = towerTopCanvas - 12;
-  var cx = GS.blockX + GS.blockW / 2;
+// ── Falling block ─────────────────────────────────────────
+function drawFallingBlock() {
+  var sz  = GS.blockSz;
+  // dropY is world coord of block centre
+  var canY = toCanvasY(GS.dropY);         // canvas Y of block centre
+  var topY = canY - sz / 2;
+  drawColorBlock(GS.dropX - sz / 2, topY, sz, sz, GS.blockColor);
+}
+
+// ── Coloured square block helper ──────────────────────────
+function drawColorBlock(x, y, w, h, color) {
+  ctx.save();
+  ctx.globalAlpha = 0.22;
+  ctx.fillStyle   = '#000';
+  drawBlock(x + 4, y + 4, w, h, 8); ctx.fill();
+  ctx.restore();
+
+  ctx.fillStyle = color;
+  drawBlock(x, y, w, h, 8); ctx.fill();
 
   ctx.save();
-  ctx.globalAlpha = 0.70;
+  ctx.globalAlpha = 0.38;
+  ctx.fillStyle   = '#fff';
+  drawBlock(x + 4, y + 4, w - 8, h * 0.40, 5); ctx.fill();
+  ctx.restore();
+
+  ctx.strokeStyle = darken(color);
+  ctx.lineWidth   = 2;
+  ctx.globalAlpha = 1;
+  drawBlock(x, y, w, h, 8); ctx.stroke();
+}
+
+// ── Drop hint: "tap to drop" arrow ────────────────────────
+function drawDropHint() {
+  var pos = blockCentreCanvas();
+  var cx  = pos.x;
+  var ay  = pos.y + GS.blockSz / 2 + 14;
+
+  ctx.save();
+  ctx.globalAlpha = 0.70 + 0.30 * Math.sin(Date.now() / 300);
   ctx.fillStyle   = '#ffe14d';
   ctx.beginPath();
-  ctx.moveTo(cx,      arrowY);
-  ctx.lineTo(cx - 9,  arrowY - 14);
-  ctx.lineTo(cx + 9,  arrowY - 14);
+  ctx.moveTo(cx,      ay);
+  ctx.lineTo(cx - 10, ay - 16);
+  ctx.lineTo(cx + 10, ay - 16);
   ctx.closePath();
   ctx.fill();
   ctx.restore();
 }
 
-// ── Clouds ─────────────────────────────────────────────────
+// ── Clouds ────────────────────────────────────────────────
 var clouds = null;
 function initClouds() {
   clouds = [];
-  for (var i = 0; i < 5; i++) {
+  for (var i = 0; i < 6; i++) {
     clouds.push({
-      x:   Math.random() * 1.2,
-      y:   0.05 + Math.random() * 0.30,
-      r:   18 + Math.random() * 22,
-      spd: 0.00008 + Math.random() * 0.00012,
+      x:   Math.random() * 1.3,
+      y:   0.04 + Math.random() * 0.28,
+      r:   14 + Math.random() * 24,
+      spd: 0.00006 + Math.random() * 0.00014,
     });
   }
 }
 function drawClouds() {
   if (!clouds) initClouds();
   ctx.save();
-  ctx.globalAlpha = 0.45;
-  ctx.fillStyle   = '#fff';
+  ctx.fillStyle   = 'rgba(255,255,255,0.28)';
   for (var i = 0; i < clouds.length; i++) {
     var cl = clouds[i];
-    cl.x = (cl.x + cl.spd) % 1.3;
+    cl.x = (cl.x + cl.spd) % 1.35;
     var cx = cl.x * GS.canvasW;
     var cy = cl.y * GS.canvasH;
     var r  = cl.r;
     ctx.beginPath();
-    ctx.arc(cx,       cy,       r,        0, Math.PI * 2);
-    ctx.arc(cx + r,   cy - r/3, r * 0.7,  0, Math.PI * 2);
-    ctx.arc(cx - r,   cy - r/4, r * 0.65, 0, Math.PI * 2);
+    ctx.arc(cx,       cy,       r,         0, Math.PI * 2);
+    ctx.arc(cx + r,   cy - r/3, r * 0.72,  0, Math.PI * 2);
+    ctx.arc(cx - r,   cy - r/4, r * 0.65,  0, Math.PI * 2);
     ctx.fill();
   }
   ctx.restore();
 }
 
-// ── Helpers ────────────────────────────────────────────────
-function roundRect(ctx, x, y, w, h, r) {
+// ── Rounded rect helper ───────────────────────────────────
+function drawBlock(x, y, w, h, r) {
   if (w <= 0 || h <= 0) return;
   r = Math.min(r, w / 2, h / 2);
   ctx.beginPath();
@@ -686,28 +742,25 @@ function roundRect(ctx, x, y, w, h, r) {
 function darken(hex) {
   try {
     var n = parseInt(hex.replace('#',''), 16);
-    var r = Math.max(0, ((n>>16)&255) - 40);
-    var g = Math.max(0, ((n>>8) &255) - 40);
-    var b = Math.max(0, ( n     &255) - 40);
+    var r = Math.max(0, ((n>>16)&255) - 45);
+    var g = Math.max(0, ((n>>8) &255) - 45);
+    var b = Math.max(0, ( n     &255) - 45);
     return '#' + [r,g,b].map(function(v){ return v.toString(16).padStart(2,'0'); }).join('');
   } catch(e) { return '#000'; }
 }
 
 // ════════════════════════════════════════════════════════════
-// 10. PARTICLES & EFFECTS
+// 10. PARTICLES
 // ════════════════════════════════════════════════════════════
 
 function spawnParticles(x, y, color, count) {
   for (var i = 0; i < count; i++) {
-    var angle = Math.random() * Math.PI * 2;
-    var speed = 1.5 + Math.random() * 3.5;
+    var a = Math.random() * Math.PI * 2;
+    var s = 1.5 + Math.random() * 4;
     GS.particles.push({
       x: x, y: y,
-      vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed - 2,
-      color: color,
-      life: 1.0,
-      r: 3 + Math.random() * 4,
+      vx: Math.cos(a) * s, vy: Math.sin(a) * s - 2,
+      color: color, life: 1.0, r: 3 + Math.random() * 4,
     });
   }
 }
@@ -716,7 +769,7 @@ function updateAndDrawParticles() {
   if (!ctx) return;
   GS.particles = GS.particles.filter(function(p){ return p.life > 0; });
   GS.particles.forEach(function(p) {
-    p.x  += p.vx; p.y += p.vy; p.vy += 0.12; p.life -= 0.035;
+    p.x += p.vx; p.y += p.vy; p.vy += 0.14; p.life -= 0.034;
     ctx.save();
     ctx.globalAlpha = Math.max(0, p.life);
     ctx.fillStyle   = p.color;
@@ -725,6 +778,7 @@ function updateAndDrawParticles() {
   });
 }
 
+// ── Float message ─────────────────────────────────────────
 var floatTimer = null;
 function showFloatMsg(text) {
   var el = document.getElementById('float-msg');
@@ -735,7 +789,7 @@ function showFloatMsg(text) {
   void el.offsetWidth;
   el.style.animation = '';
   clearTimeout(floatTimer);
-  floatTimer = setTimeout(function(){ el.style.display = 'none'; }, 1200);
+  floatTimer = setTimeout(function(){ el.style.display = 'none'; }, 1400);
 }
 
 // ════════════════════════════════════════════════════════════
@@ -743,46 +797,42 @@ function showFloatMsg(text) {
 // ════════════════════════════════════════════════════════════
 
 function startGame() {
-  // Must init canvas FIRST so dimensions are known
-  initCanvas();
-  resizeCanvas();
+  initCanvas();      // ensure canvas reference exists
+  resizeCanvas();    // get correct dimensions
 
   resetRuntime();
-  SoundFX.unlock();
 
-  var cfg   = DIFF_CFG[GS.diff];
-  GS.lives  = cfg.lives;
-  // blockW/H already set by resizeCanvas above
-  colorIdx        = 0;
+  var cfg    = getCfg();
+  GS.lives   = cfg.lives;
+  // Reset block size to default
+  GS.blockSz = Math.max(MIN_BLOCK_PX, Math.round(GS.canvasW * BLOCK_SIZE_FRAC));
+  colorIdx   = 0;
   perfectsThisGame = 0;
-  GS.blockColor   = BLOCK_COLORS[0];
-  GS.nextColor    = BLOCK_COLORS[1];
+  GS.blockColor = BLOCK_COLORS[0];
+  GS.nextColor  = nextColor();
 
   showScreen('screen-game');
 
-  // Re-measure after screen is visible (layout may shift)
+  // Re-measure after paint (goal bar changes layout)
   requestAnimationFrame(function() {
-    resizeCanvas();
-
-    // Challenge goal bar
     if (GS.mode === 'challenge') {
       var lvlDef = CHALLENGE_LEVELS[GS.challengeLevel];
       if (lvlDef) {
-        document.getElementById('goal-bar').style.display  = '';
-        document.getElementById('goal-text').textContent   = lvlDef.desc;
-        document.getElementById('goal-fill').style.width   = '0%';
-        resizeCanvas(); // recalc with goal bar visible
+        document.getElementById('goal-bar').style.display = '';
+        document.getElementById('goal-text').textContent  = lvlDef.desc;
+        document.getElementById('goal-fill').style.width  = '0%';
       }
     } else {
       document.getElementById('goal-bar').style.display = 'none';
     }
-
+    resizeCanvas();  // recalc with goal bar
     document.getElementById('hud-best').textContent = getBestScore(GS.mode, GS.diff);
     updateHUD();
     initBlock();
-
     GS.running = true;
-    GS.loopId  = requestAnimationFrame(mainLoop);
+    // Resume music (don't restart from 0 — fix #1)
+    BgMusic.resume();
+    GS.loopId = requestAnimationFrame(mainLoop);
   });
 }
 
@@ -808,11 +858,11 @@ function restartGame() {
 
 function endGame() {
   GS.running = false;
-  BgMusic.stop();
+  // Fix #1: DON'T stop music — just let it keep playing in background
   SoundFX.gameover();
 
   var isNew = setBestScore(GS.mode, GS.diff, GS.score);
-  var cfg   = DIFF_CFG[GS.diff];
+  var cfg   = getCfg();
   var msg   = GS.floor >= 15 ? 'מגדל ענק! 🏙️' :
               GS.floor >= 8  ? 'כל הכבוד! 🎉'  :
               GS.floor >= 4  ? 'יפה מאוד! 😊'  : 'נסה שוב — תוכל להצליח! 💪';
@@ -828,27 +878,24 @@ function endGame() {
 function checkChallengeGoal() {
   var lvl = CHALLENGE_LEVELS[GS.challengeLevel];
   if (!lvl) return;
-
   var progress = 0;
-  if (lvl.type === 'floors')   { progress = GS.floor; }
+  if      (lvl.type === 'floors')   { progress = GS.floor; }
   else if (lvl.type === 'perfects') { progress = perfectsThisGame; }
   else if (lvl.type === 'score')    { progress = GS.score; }
   else if (lvl.type === 'survive')  {
     progress = GS.floor;
-    var lost = DIFF_CFG[GS.diff].lives - GS.lives;
+    var lost = getCfg().lives - GS.lives;
     if (lost > (lvl.maxLost || 0)) { endGame(); return; }
   }
-
   var pct = Math.min(100, Math.round(progress / lvl.target * 100));
   document.getElementById('goal-fill').style.width = pct + '%';
-
   if (progress >= lvl.target) winChallenge();
 }
 
 function winChallenge() {
   GS.running = false;
-  BgMusic.stop();
   SoundFX.win();
+  // Fix #1: keep music playing
 
   var nextIdx = GS.challengeLevel + 1;
   setChallengeProgress(nextIdx);
@@ -875,7 +922,7 @@ function winChallenge() {
 
 function goToMenu() {
   GS.running = false;
-  BgMusic.stop();
+  // Fix #1: music keeps playing — just hide screens
   document.getElementById('overlay-pause').style.display    = 'none';
   document.getElementById('overlay-gameover').style.display = 'none';
   document.getElementById('overlay-win').style.display      = 'none';
@@ -889,7 +936,7 @@ function showScreen(id) {
 }
 
 // ════════════════════════════════════════════════════════════
-// 12. HUD / UI UPDATES
+// 12. HUD / UI
 // ════════════════════════════════════════════════════════════
 
 function updateHUD() { updateScoreUI(); updateLivesUI(); }
@@ -901,68 +948,51 @@ function updateScoreUI() {
 
 function updateLivesUI() {
   var hearts = '';
-  for (var i = 0; i < GS.lives; i++)               hearts += '❤️';
-  for (var j = GS.lives; j < DIFF_CFG[GS.diff].lives; j++) hearts += '🖤';
+  for (var i = 0; i < GS.lives; i++)                       hearts += '❤️';
+  for (var j = GS.lives; j < getCfg().lives; j++) hearts += '🖤';
   var el = document.getElementById('hud-lives');
   if (el) el.textContent = hearts;
 }
 
 function updateMenuDisplay() {
-  var bestRow = document.getElementById('best-row');
-  if (!bestRow) return;
-  var bestT = getBestScore('tower', GS.diff);
-  var bestC = getBestScore('challenge', GS.diff);
+  var br = document.getElementById('best-row');
+  if (!br) return;
+  var bt = getBestScore('tower', GS.diff), bc = getBestScore('challenge', GS.diff);
   var parts = [];
-  if (bestT > 0) parts.push('🏆 מגדל: ' + bestT);
-  if (bestC > 0) parts.push('🎯 אתגר: ' + bestC);
-  bestRow.textContent = parts.join('   |   ');
+  if (bt > 0) parts.push('🏆 מגדל: ' + bt);
+  if (bc > 0) parts.push('🎯 אתגר: ' + bc);
+  br.textContent = parts.join('   |   ');
 
   updateChallengeDots();
-
   document.querySelectorAll('.diff-btn').forEach(function(b){
     b.classList.toggle('active', b.dataset.diff === GS.diff);
   });
   document.querySelectorAll('.sel-btn').forEach(function(b){
     b.classList.toggle('active', b.dataset.mode === GS.mode);
   });
-  document.getElementById('challenge-progress').style.display = GS.mode === 'challenge' ? '' : 'none';
+  document.getElementById('challenge-progress').style.display =
+    GS.mode === 'challenge' ? '' : 'none';
 }
 
 function updateChallengeDots() {
-  var container = document.getElementById('lvl-dots');
-  if (!container) return;
-  var progress = getChallengeProgress();
-  container.innerHTML = '';
+  var c = document.getElementById('lvl-dots'); if (!c) return;
+  var p = getChallengeProgress();
+  c.innerHTML = '';
   CHALLENGE_LEVELS.forEach(function(lvl, i) {
-    var dot = document.createElement('div');
-    dot.className = 'lvl-dot';
-    if (i < progress)  dot.classList.add('done');
-    if (i === progress) dot.classList.add('active');
-    dot.textContent = i < progress ? '✓' : (i + 1);
-    container.appendChild(dot);
+    var d = document.createElement('div');
+    d.className = 'lvl-dot';
+    if (i < p)  d.classList.add('done');
+    if (i === p) d.classList.add('active');
+    d.textContent = i < p ? '✓' : (i + 1);
+    c.appendChild(d);
   });
 }
 
 // ════════════════════════════════════════════════════════════
-// 13. INPUT HANDLING
-// ════════════════════════════════════════════════════════════
-
-function handleDrop() {
-  if (!GS.running || GS.paused || GS.dropping) return;
-  SoundFX.unlock();
-  GS.dropping = true;
-  // Start drop at current swing Y (just above tower top, in world coords)
-  GS.dropY  = getTowerTopWorld() + GS.blockH + 55;
-  GS.dropVY = 0;
-}
-
-// ════════════════════════════════════════════════════════════
-// 14. MENU WIRING  (all inside DOMContentLoaded)
+// 13. MENU WIRING
 // ════════════════════════════════════════════════════════════
 
 document.addEventListener('DOMContentLoaded', function() {
-
-  // Load saved difficulty
   GS.diff = getSavedDiff();
 
   // Mode buttons
@@ -989,7 +1019,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Play
   document.getElementById('btn-play').addEventListener('click', function() {
-    SoundFX.unlock();
+    SoundFX.unlock();   // first gesture — starts music
     startGame();
   });
 
@@ -1001,24 +1031,22 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('modal-howto').style.display = 'none';
   });
 
-  // Sound
+  // Sound toggle
   document.getElementById('btn-sound').addEventListener('click', function() {
     GS.soundOn = !GS.soundOn;
     this.textContent = GS.soundOn ? '🔊 פועל' : '🔇 כבוי';
     BgMusic.toggle(GS.soundOn);
   });
 
-  // Pause button (HUD)
+  // Pause (HUD)
   document.getElementById('btn-pause').addEventListener('click', function() {
     if (GS.paused) resumeGame(); else pauseGame();
   });
 
-  // Canvas drop
-  var gameCanvas = document.getElementById('game-canvas');
-  gameCanvas.addEventListener('click', handleDrop);
-  gameCanvas.addEventListener('touchstart', function(e){
-    e.preventDefault(); handleDrop();
-  }, { passive: false });
+  // Canvas: click or touch to drop
+  var gc = document.getElementById('game-canvas');
+  gc.addEventListener('click', handleDrop);
+  gc.addEventListener('touchstart', function(e){ e.preventDefault(); handleDrop(); }, { passive: false });
 
   // Keyboard
   document.addEventListener('keydown', function(e) {
@@ -1040,17 +1068,15 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('btn-go-menu').addEventListener('click',    goToMenu);
   document.getElementById('btn-win-menu').addEventListener('click',   goToMenu);
 
-  // Resize
   window.addEventListener('resize', function() {
     if (document.getElementById('screen-game').classList.contains('active')) resizeCanvas();
   });
 
-  // Initial menu
   updateMenuDisplay();
 });
 
 // ════════════════════════════════════════════════════════════
-// 15. MAIN LOOP
+// 14. MAIN LOOP
 // ════════════════════════════════════════════════════════════
 
 function mainLoop() {
