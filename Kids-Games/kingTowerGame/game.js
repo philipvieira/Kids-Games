@@ -302,40 +302,31 @@ const CHALLENGE_LEVELS = [
 var perfectsThisGame = 0;
 
 // ════════════════════════════════════════════════════════════
-// 6. BLOCK SPRITES  (platform_faces.png — 3×3 grid, 256×256 each)
+// 6. BLOCK IMAGES  (block1.png … block9.png — individual files)
 // ════════════════════════════════════════════════════════════
 
-// The sprite sheet is 768×768 (3 cols × 3 rows of 256×256 sprites).
-// Physics are unaffected — the sprite is purely decorative.
-const BLOCK_SPRITES = [
-  { x: 0,   y: 0   },   // row 0
-  { x: 256, y: 0   },
-  { x: 512, y: 0   },
-  { x: 0,   y: 256 },   // row 1
-  { x: 256, y: 256 },
-  { x: 512, y: 256 },
-  { x: 0,   y: 512 },   // row 2
-  { x: 256, y: 512 },
-  { x: 512, y: 512 },
-];
-const SPRITE_CELL = 256;  // px of each cell in the sheet
+const BLOCK_IMG_COUNT = 9;
+var blockImgs    = [];   // array of Image objects
+var blockImgsRdy = 0;    // how many have loaded
 
-var facesImg = null;
-var facesLoaded = false;
-(function loadFaces() {
-  facesImg = new Image();
-  facesImg.onload = function() { facesLoaded = true; };
-  facesImg.src = 'assets/platform_faces.png';
+(function loadBlockImgs() {
+  for (var i = 1; i <= BLOCK_IMG_COUNT; i++) {
+    var img = new Image();
+    img.onload = function() { blockImgsRdy++; };
+    img.src = 'assets/block' + i + '.png';
+    blockImgs.push(img);
+  }
 })();
 
 function randomSprite() {
-  return BLOCK_SPRITES[Math.floor(Math.random() * BLOCK_SPRITES.length)];
+  // Returns an index 0-8
+  return Math.floor(Math.random() * BLOCK_IMG_COUNT);
 }
 
-// BLOCK COLOURS kept as fallback / tint reference (not drawn unless image fails)
+// BLOCK COLOURS kept as fallback while images load
 const BLOCK_COLORS = [
   '#60a5fa','#f87171','#4ade80','#facc15',
-  '#c084fc','#fb923c','#34d399','#f472b6',
+  '#c084fc','#fb923c','#34d399','#f472b6','#a78bfa',
 ];
 var colorIdx = 0;
 function nextColor() {
@@ -856,10 +847,10 @@ function drawTumblingBlock() {
   ctx.restore();
 }
 
-// ── Core sprite-sheet block draw ──────────────────────────
-// sprite: { x, y } cell coords in the sheet. color: fallback fill.
+// ── Core block draw — individual image files ──────────────
+// spriteIdx: 0-8 index into blockImgs[]. color: fallback fill.
 // scale: applied centred on the block (for bounce).
-function drawFaceBlock(x, y, w, h, sprite, color, scale) {
+function drawFaceBlock(x, y, w, h, spriteIdx, color, scale) {
   var cx = x + w / 2, cy = y + h / 2;
   ctx.save();
   if (scale !== 1) {
@@ -873,9 +864,11 @@ function drawFaceBlock(x, y, w, h, sprite, color, scale) {
   ctx.fillRect(x + 4, y + 4, w, h);
   ctx.globalAlpha = 1;
 
-  if (facesLoaded && sprite) {
-    ctx.drawImage(facesImg, sprite.x, sprite.y, SPRITE_CELL, SPRITE_CELL, x, y, w, h);
+  var img = (spriteIdx !== null && spriteIdx >= 0) ? blockImgs[spriteIdx] : null;
+  if (img && img.complete && img.naturalWidth > 0) {
+    ctx.drawImage(img, x, y, w, h);
   } else {
+    // Fallback while images load
     ctx.fillStyle = color || '#60a5fa';
     ctx.fillRect(x, y, w, h);
     ctx.strokeStyle = darken(color || '#60a5fa');
