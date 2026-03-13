@@ -117,20 +117,23 @@ function loadAssets(callback) {
 }
 
 /* ── BLOCK SPRITES in assets.png ─────────────────────────────
-   Row 1: Square, Rect, Triangle, Arch, Plank, Circle
-   Row 2: Rainbow, Balloon, Glue, Star, Bonus, Base */
+   Coordinates verified by pixel-color sampling.
+   Row 1 (sy:28, sh:92 — stops before text labels at y≈120):
+     Square(blue), Rect(green), Triangle(yellow), Arch(red), Plank(orange), Circle(blue sphere)
+   Row 2 (sy≈125-130, sh:80):
+     Rainbow, Balloon(bouncy), Glue(sticky), Star, Base(heavy) */
 const BLOCK_SPRITES = {
-  square:   [{ sx: 468, sy: 50, sw: 72,  sh: 60 }],
-  rect:     [{ sx: 548, sy: 50, sw: 92,  sh: 60 }],
-  triangle: [{ sx: 635, sy: 44, sw: 75,  sh: 64 }],
-  arch:     [{ sx: 710, sy: 44, sw: 75,  sh: 66 }],
-  plank:    [{ sx: 793, sy: 50, sw: 132, sh: 58 }],
-  circle:   [{ sx: 928, sy: 40, sw: 72,  sh: 68 }],
-  heavy:    [{ sx: 920, sy: 135, sw: 85,  sh: 65 }],
-  rainbow:  [{ sx: 470, sy: 130, sw: 75,  sh: 65 }],
-  bouncy:   [{ sx: 548, sy: 128, sw: 67,  sh: 72 }],
-  sticky:   [{ sx: 618, sy: 128, sw: 67,  sh: 72 }],
-  star:     [{ sx: 710, sy: 130, sw: 74,  sh: 68 }],
+  square:   [{ sx: 375, sy: 28, sw: 135, sh: 92 }],  // blue rounded square
+  rect:     [{ sx: 510, sy: 28, sw: 140, sh: 92 }],  // green rectangle
+  triangle: [{ sx: 620, sy: 28, sw: 130, sh: 92 }],  // yellow triangle
+  arch:     [{ sx: 740, sy: 28, sw: 130, sh: 92 }],  // red arch
+  plank:    [{ sx: 840, sy: 28, sw: 120, sh: 92 }],  // orange wide plank
+  circle:   [{ sx: 935, sy: 28, sw:  89, sh: 92 }],  // dark blue sphere
+  heavy:    [{ sx: 900, sy: 125, sw: 124, sh: 80 }], // gray base = heavy block
+  rainbow:  [{ sx: 375, sy: 130, sw: 135, sh: 80 }], // rainbow stack
+  bouncy:   [{ sx: 510, sy: 125, sw: 110, sh: 80 }], // red balloon = bouncy
+  sticky:   [{ sx: 610, sy: 125, sw: 110, sh: 80 }], // purple glue = sticky
+  star:     [{ sx: 700, sy: 125, sw: 120, sh: 80 }], // yellow star
 };
 
 /* ── POWER-UP ICON SPRITES ──────────────────────────────── */
@@ -157,14 +160,13 @@ const HUD_SPRITES = {
 };
 
 /* ── BACKGROUND SPRITES ─────────────────────────────────── */
+// The scene is in the bottom-left of assets.png.
+// The "BACKGROUND PACK" green label is at y≈455-469; actual sky starts at y≈470.
+// Scene extends to y≈645, x≈15-365 (350×175 px).
+// BG_GROUND_FRAC: how far from top the visual ground line sits in the scene image.
 const BG_SPRITES = {
-  scene:    { sx: 18,  sy: 460, sw: 352, sh: 200 },
-  cloud1:   { sx: 445, sy: 425, sw: 77,  sh: 45 },
-  cloud2:   { sx: 590, sy: 453, sw: 70,  sh: 22 },
-  grass1:   { sx: 450, sy: 498, sw: 80,  sh: 42 },
-  grass2:   { sx: 530, sy: 498, sw: 70,  sh: 42 },
-  dirt:     { sx: 450, sy: 540, sw: 80,  sh: 40 },
-  stone:    { sx: 530, sy: 540, sw: 75,  sh: 39 },
+  scene: { sx: 15, sy: 470, sw: 350, sh: 175 },
+  // Clouds are drawn in code (cloud sprites became transparent after white-bg removal)
 };
 
 /* ── UI BUTTON SPRITES ──────────────────────────────────── */
@@ -900,64 +902,76 @@ function resizeCanvas() {
   if (GS.cameraY === 0) GS.cameraY = 0; // world Y 0 = ground, shown at canvas bottom
 }
 
-// Background built from assets.png scene + tiled ground
-var BG_GROUND_FRAC = 0.82;
+// The scene image's visual ground line sits at ~88% from its top.
+// Adjust so the scene ground aligns with the physics floor (worldY=0).
+var BG_GROUND_FRAC = 0.88;
 
 function drawBackground(ctx, W, H) {
   var groundCanvasY = toCanvasY(0);
 
+  // Full-canvas sky gradient (shows when tower scrolls scene off top)
+  var skyEnd = Math.min(groundCanvasY, H);
+  var sky = ctx.createLinearGradient(0, 0, 0, skyEnd);
+  sky.addColorStop(0, '#4aaee8');
+  sky.addColorStop(1, '#82d0ff');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, W, H);
+
   if (ASSETS.ready && ASSETS.sheet) {
-    var sp = BG_SPRITES.scene;
+    var sp    = BG_SPRITES.scene;          // {sx:15,sy:470,sw:350,sh:175}
     var scale = W / sp.sw;
     var imgH  = sp.sh * scale;
+    // Align scene so its ground (BG_GROUND_FRAC from top) = physics ground Y
     var imgY  = groundCanvasY - imgH * BG_GROUND_FRAC;
 
-    // Sky fill above the scene image
-    var sky = ctx.createLinearGradient(0, 0, 0, Math.max(imgY, H * 0.5));
-    sky.addColorStop(0, '#6ec8f8');
-    sky.addColorStop(1, '#3a9fe0');
-    ctx.fillStyle = sky;
-    ctx.fillRect(0, 0, W, Math.max(imgY + 20, H));
-
-    // Draw the scene backdrop
     ctx.drawImage(ASSETS.sheet, sp.sx, sp.sy, sp.sw, sp.sh, 0, imgY, W, imgH);
+  }
 
-    // Tile ground below scene
-    var grassSp = BG_SPRITES.grass1;
-    var dirtSp  = BG_SPRITES.dirt;
-    var tileW   = grassSp.sw * scale;
-    var tileH   = grassSp.sh * scale;
-    var groundTop = imgY + imgH;
+  // Code-drawn parallax clouds (scroll slowly left, loop)
+  drawCloudsCode(ctx, W, groundCanvasY, performance.now());
 
-    if (groundTop < H) {
-      for (var tx = 0; tx < W; tx += tileW) {
-        var drawW = Math.min(tileW, W - tx);
-        ctx.drawImage(ASSETS.sheet, grassSp.sx, grassSp.sy, grassSp.sw, grassSp.sh,
-                      tx, groundTop, drawW, tileH);
-        ctx.drawImage(ASSETS.sheet, dirtSp.sx, dirtSp.sy, dirtSp.sw, dirtSp.sh,
-                      tx, groundTop + tileH, drawW, tileH);
-      }
-      var dirtEnd = groundTop + tileH * 2;
-      if (dirtEnd < H) {
-        ctx.fillStyle = '#6B4A1E';
-        ctx.fillRect(0, dirtEnd, W, H - dirtEnd);
-      }
-    }
+  // Solid ground fill below physics floor
+  if (groundCanvasY < H) {
+    ctx.fillStyle = '#4a8a0e';           // grass strip
+    ctx.fillRect(0, groundCanvasY - 3, W, 8);
+    ctx.fillStyle = '#6B4226';           // dirt below grass
+    ctx.fillRect(0, groundCanvasY + 5, W, H - groundCanvasY - 5);
+  }
 
-    // Floating clouds (parallax)
-    var t = performance.now() * 0.00003;
-    var cl1 = BG_SPRITES.cloud1;
-    var cl2 = BG_SPRITES.cloud2;
-    var cScale = scale * 1.2;
-    ctx.globalAlpha = 0.7;
-    ctx.drawImage(ASSETS.sheet, cl1.sx, cl1.sy, cl1.sw, cl1.sh,
-                  ((t * W * 0.5) % (W + 100)) - 50, imgY + 15, cl1.sw * cScale, cl1.sh * cScale);
-    ctx.drawImage(ASSETS.sheet, cl2.sx, cl2.sy, cl2.sw, cl2.sh,
-                  ((t * W * 0.8 + W * 0.4) % (W + 80)) - 40, imgY + 40, cl2.sw * cScale, cl2.sh * cScale);
-    ctx.globalAlpha = 1;
-  } else {
+  if (!ASSETS.ready || !ASSETS.sheet) {
     drawBackgroundFallback(ctx, W, H);
   }
+}
+
+// Simple code-drawn clouds that scroll left across the sky
+function drawCloudsCode(ctx, W, groundCanvasY, ts) {
+  var t = ts * 0.000016;
+  // Cloud Y: position in upper 35% of sky above ground
+  var skyHeight = groundCanvasY;
+  var cy1 = skyHeight * 0.12;
+  var cy2 = skyHeight * 0.25;
+  var cy3 = skyHeight * 0.08;
+
+  ctx.save();
+  ctx.globalAlpha = 0.82;
+
+  function puffCloud(cx, cy, rx, ry) {
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.ellipse(cx,        cy,        rx,      ry,      0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(cx - rx * 0.45, cy + ry * 0.1, rx * 0.65, ry * 0.7, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(cx + rx * 0.45, cy + ry * 0.1, rx * 0.60, ry * 0.65, 0, 0, Math.PI * 2); ctx.fill();
+  }
+
+  var cx1 = ((t * W * 0.18) % (W + 160)) - 80;
+  var cx2 = ((t * W * 0.11 + W * 0.55) % (W + 160)) - 80;
+  var cx3 = ((t * W * 0.22 + W * 0.25) % (W + 140)) - 70;
+
+  puffCloud(cx1, cy1, W * 0.09, W * 0.032);
+  puffCloud(cx2, cy2, W * 0.07, W * 0.025);
+  puffCloud(cx3, cy3, W * 0.06, W * 0.022);
+
+  ctx.globalAlpha = 1;
+  ctx.restore();
 }
 
 function drawBackgroundFallback(ctx, W, H) {

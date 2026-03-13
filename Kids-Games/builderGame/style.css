@@ -21,7 +21,7 @@ html, body {
 
 /* ═══ MENU ═══ */
 #screen-menu {
-  background: linear-gradient(180deg, #5bc0f8 0%, #3a8fd4 40%, #2e7ab8 100%);
+  background: linear-gradient(180deg, #6cd5ff 0%, #3aaae0 35%, #2580c8 70%, #1a5fa0 100%);
   overflow-y: auto;
   justify-content: flex-start;
   padding: 18px 0 30px;
@@ -81,19 +81,19 @@ html, body {
 
 /* ═══ SPRITE-BACKED BUTTONS ═══ */
 
-/* Green mode buttons (matching sprite style) */
+/* Orange mode buttons (matches the orange mode buttons in assets.png) */
 .sprite-btn-green {
-  background: linear-gradient(180deg, #7dd85e 0%, #3bb528 50%, #2c9a1c 100%);
-  color: #fff; border: 2px solid #1d7a0e;
+  background: linear-gradient(180deg, #f5ad45 0%, #e88020 50%, #cc6010 100%);
+  color: #fff; border: 2px solid #a84e08;
   border-radius: 10px; font-weight: 800;
-  text-shadow: 0 2px 3px rgba(0,0,0,0.3);
-  box-shadow: 0 3px 8px rgba(45,140,30,0.4), inset 0 1px 0 rgba(255,255,255,0.3);
+  text-shadow: 0 2px 3px rgba(0,0,0,0.35);
+  box-shadow: 0 3px 8px rgba(180,90,20,0.45), inset 0 1px 0 rgba(255,255,255,0.3);
   padding: 8px 16px; font-size: clamp(0.85rem, 3.5vw, 1rem);
   cursor: pointer; transition: all 0.15s;
 }
-.sprite-btn-green:hover { transform: translateY(-2px); box-shadow: 0 5px 14px rgba(45,140,30,0.5); }
+.sprite-btn-green:hover { transform: translateY(-2px); box-shadow: 0 5px 14px rgba(180,90,20,0.55); }
 .sprite-btn-green:active { transform: translateY(0) scale(0.96); }
-.sprite-btn-green.active { box-shadow: 0 0 0 3px #ffe85a, 0 3px 8px rgba(45,140,30,0.4); }
+.sprite-btn-green.active { box-shadow: 0 0 0 3px #ffe85a, 0 3px 8px rgba(180,90,20,0.5); }
 
 /* Purple difficulty buttons */
 .sprite-btn-purple {
