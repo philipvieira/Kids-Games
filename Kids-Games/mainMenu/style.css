@@ -37,10 +37,15 @@
 
 body {
   font-family: 'Segoe UI', 'Arial', sans-serif;
-  background: #0a0a1a;
+  background: url('assets/bg.png') center center / cover no-repeat fixed;
   color: #fff;
   min-height: 100vh;
   direction: rtl;
+}
+
+/* ─── Stars background ──────────────────────────────── */
+body::before {
+  content: none;
 }
 
 /* ─── Page wrapper ──────────────────────────────────── */
