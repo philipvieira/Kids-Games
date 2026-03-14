@@ -96,7 +96,7 @@ const GAMES = [
     icon:  '👑',
     color: 'linear-gradient(135deg, #0d1b3e 0%, #1a4a8a 50%, #ffe14d 100%)',
     path:  '../kingTowerGame/index.html',
-    thumb: '',
+    thumb: '../kingTowerGame/assets/thumb.png',
   },
 
   {
