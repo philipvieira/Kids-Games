@@ -12,14 +12,6 @@ const GRID_SIZE   = 9;
 const STORAGE_KEY = 'whackMole_best_v2';
 const MAX_LIVES   = 3;
 
-// Hole sprite sheet: 3 columns × 3 rows, each cell 300×200 px (source)
-const HOLE_SPRITE_COLS = 3;
-const HOLE_SPRITE_ROWS = 3;
-const HOLE_CELL_W = 300;
-const HOLE_CELL_H = 200;
-// Each hole tile is rendered with this aspect ratio
-const HOLE_ASPECT = HOLE_CELL_W / HOLE_CELL_H;  // 1.5
-
 // Mole types
 // triple: hit it and 3 normal moles instantly pop up in random empty holes
 const MOLE_TYPES = {
@@ -106,7 +98,7 @@ var el = {
 };
 
 // ════════════════════════════════════════════════════════════
-// 4. HOLE SPRITE SHEET
+// 4. HOLE IMAGE  (single image, used for every hole)
 // ════════════════════════════════════════════════════════════
 
 var holeImg = new Image();
@@ -114,17 +106,13 @@ var holeImgReady = false;
 holeImg.onload = function() { holeImgReady = true; redrawAllHoles(); };
 holeImg.src = 'assets/holes.png';
 
-// Draw hole i onto its canvas element
-function drawHoleCanvas(holeState, holeIndex) {
+// Draw the single hole image onto a hole's canvas
+function drawHoleCanvas(holeState) {
   var canvas = holeState.canvas;
   var ctx    = canvas.getContext('2d');
-  var col    = holeIndex % HOLE_SPRITE_COLS;
-  var row    = Math.floor(holeIndex / HOLE_SPRITE_COLS);
-  var sx     = col * HOLE_CELL_W;
-  var sy     = row * HOLE_CELL_H;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   if (holeImgReady) {
-    ctx.drawImage(holeImg, sx, sy, HOLE_CELL_W, HOLE_CELL_H, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(holeImg, 0, 0, canvas.width, canvas.height);
   } else {
     // Fallback while image loads
     ctx.fillStyle = '#5a3010';
@@ -137,7 +125,7 @@ function drawHoleCanvas(holeState, holeIndex) {
 }
 
 function redrawAllHoles() {
-  GS.holes.forEach(function(h, i) { drawHoleCanvas(h, i); });
+  GS.holes.forEach(function(h) { drawHoleCanvas(h); });
 }
 
 // ════════════════════════════════════════════════════════════
@@ -210,7 +198,7 @@ function buildGrid() {
     };
     GS.holes.push(holeState);
 
-    drawHoleCanvas(holeState, i);
+    drawHoleCanvas(holeState);
 
     // Pointer events on the whole tile
     (function(idx) {
