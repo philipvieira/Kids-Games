@@ -34,6 +34,22 @@ let gameRunning;
 let gamePaused = false;
 let scrollY, bgOffset;
 let moveLeft = false, moveRight = false;
+
+// ─── Road sprite system ───────────────────────────────────────
+// Two identical road images tile vertically for infinite scroll.
+// roadSpriteH: drawn height of one sprite tile (equals canvas height).
+// roadScrollY: continuous offset (0..roadSpriteH), drives both tiles.
+let roadScrollY = 0;
+let roadSpriteH = 0;   // set in resize(), equals H
+
+const ROAD_IMG_1 = new Image();
+const ROAD_IMG_2 = new Image();
+let roadImagesLoaded = 0;
+function _onRoadImgLoad() { roadImagesLoaded++; }
+ROAD_IMG_1.onload = _onRoadImgLoad;
+ROAD_IMG_2.onload = _onRoadImgLoad;
+ROAD_IMG_1.src = 'assets/road1.png';
+ROAD_IMG_2.src = 'assets/road2.png';
 let powerupsActive = {};   // { speed: {endTime, startTime}, invincible: {...}, x2: {...} }
 let loopId = null;
 let frameCount = 0;
@@ -72,12 +88,17 @@ const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
 function resize() {
   W = canvas.width  = window.innerWidth;
   H = canvas.height = window.innerHeight;
-  // On narrow mobile screens use a wider road fraction so the lanes remain usable
-  const roadFrac = W < 480 ? 0.92 : W < 680 ? 0.80 : 0.70;
-  const roadW = Math.min(W * roadFrac, 520);
-  roadLeft  = (W - roadW) / 2;
-  roadRight = roadLeft + roadW;
-  laneW     = roadW / LANES;
+  roadSpriteH = H;  // each sprite tile fills the full screen height
+
+  // Road image is 682px wide — we stretch it to fill the full canvas width.
+  // The road occupies the center; kerbs and trees are baked into the image.
+  // We still expose roadLeft/roadRight/laneW so traffic/player logic works.
+  // The image has ~8% kerb on each side, so the driveable area is ~84% of width.
+  const kerbFrac = 0.10;   // fraction of road image that is kerb+grass on each side
+  roadLeft  = W * kerbFrac;
+  roadRight = W * (1 - kerbFrac);
+  laneW     = (roadRight - roadLeft) / LANES;
+
   if (player) {
     player.x = clamp(player.x, roadLeft + laneW * 0.5, roadRight - laneW * 0.5);
   }
@@ -182,6 +203,7 @@ function initLevel(lvl) {
   goalDistance         = cfg.goalDist;
   scrollY           = 0;
   bgOffset          = 0;
+  roadScrollY       = 0;
   moveLeft          = false;
   moveRight         = false;
   powerupsActive    = {};
@@ -405,8 +427,11 @@ function update(ts) {
   if (moveLeft)  player.x = Math.max(roadLeft  + player.w / 2, player.x - hSpeed);
   if (moveRight) player.x = Math.min(roadRight - player.w / 2, player.x + hSpeed);
 
-  scrollY  = (scrollY  + speed)       % H;
-  bgOffset = (bgOffset + speed * 0.4) % H;
+  const prevRoadScrollY = roadScrollY;
+  scrollY     = (scrollY     + speed) % H;
+  bgOffset    = (bgOffset    + speed * 0.4) % H;
+  roadScrollY = (roadScrollY + speed) % H;
+  _checkRoadCycle(prevRoadScrollY, roadScrollY);
 
   // Score: add distance delta each frame, multiplied by x2 if active.
   // Using a delta prevents the score from dropping when x2 expires.
@@ -593,8 +618,8 @@ function spawnBurst(x, y, color) {
 // ═══════════════════════════════════════════════════════════════
 function draw() {
   ctx.clearRect(0, 0, W, H);
-  drawBackground();
-  drawRoad();
+  drawRoadSprites();
+  drawRoad();           // lane dash overlay on top of sprite
   drawFinishLine();
   drawCarShadows();
   drawTrafficCars();
@@ -603,10 +628,58 @@ function draw() {
   drawParticles();
 }
 
-// ─── Background ───────────────────────────────────────────────
-function drawBackground() {
-  drawCity(0, roadLeft);
-  drawBeach(roadRight, W);
+// ─── Road sprite infinite scroll ──────────────────────────────
+// Two copies of the road image tile vertically.
+// Sprite A starts at  roadScrollY - H  (scrolls into view from top)
+// Sprite B starts at  roadScrollY      (currently filling the screen)
+// When roadScrollY reaches H, it wraps to 0 and the cycle repeats.
+// We alternate which image (road1/road2) goes on top each cycle for visual variety.
+let _roadCycle = 0;
+function drawRoadSprites() {
+  const sh = H; // sprite drawn height = full screen
+  const offset = roadScrollY;
+
+  // Pick which image goes on top vs bottom (alternate each full cycle)
+  const imgA = (_roadCycle % 2 === 0) ? ROAD_IMG_1 : ROAD_IMG_2;
+  const imgB = (_roadCycle % 2 === 0) ? ROAD_IMG_2 : ROAD_IMG_1;
+
+  // Fallback: if images haven't loaded yet, draw a plain dark road
+  if (roadImagesLoaded === 0) {
+    ctx.fillStyle = '#303030';
+    ctx.fillRect(0, 0, W, H);
+    drawRoadFallback();
+    return;
+  }
+
+  // Tile B: fills from offset downward (the main visible tile)
+  ctx.drawImage(imgB, 0, offset, W, sh);
+  // Tile A: sits directly above tile B (scrolls in from the top)
+  ctx.drawImage(imgA, 0, offset - sh, W, sh);
+
+  // Detect wrap-around — when offset is about to pass H, increment cycle
+  // (handled by the modulo in update, but we track it for image alternation)
+}
+
+// Called on each wrap of roadScrollY so images alternate
+function _checkRoadCycle(prevOffset, newOffset) {
+  if (prevOffset > newOffset) _roadCycle++; // wrapped
+}
+
+// Plain canvas fallback while images load
+function drawRoadFallback() {
+  const roadW = roadRight - roadLeft;
+  const grd = ctx.createLinearGradient(roadLeft, 0, roadRight, 0);
+  grd.addColorStop(0, '#252525'); grd.addColorStop(0.5, '#363636'); grd.addColorStop(1, '#252525');
+  ctx.fillStyle = grd;
+  ctx.fillRect(roadLeft, 0, roadW, H);
+  // dashed lanes
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 2;
+  ctx.setLineDash([28, 20]); ctx.lineDashOffset = -(scrollY % 48);
+  for (let i = 1; i < LANES; i++) {
+    const lx = roadLeft + laneW * i;
+    ctx.beginPath(); ctx.moveTo(lx, 0); ctx.lineTo(lx, H); ctx.stroke();
+  }
+  ctx.setLineDash([]); ctx.lineDashOffset = 0;
 }
 
 // ─── CITY (daytime) ───────────────────────────────────────────
@@ -948,37 +1021,10 @@ function drawCooler(x, y) {
 }
 
 // ─── Road ─────────────────────────────────────────────────────
+// Lane dashes drawn on top of the road sprite for extra clarity
 function drawRoad() {
-  const roadW = roadRight - roadLeft;
-
-  // Road surface
-  const grd = ctx.createLinearGradient(roadLeft, 0, roadRight, 0);
-  grd.addColorStop(0,   '#252525');
-  grd.addColorStop(0.5, '#363636');
-  grd.addColorStop(1,   '#252525');
-  ctx.fillStyle = grd;
-  ctx.fillRect(roadLeft, 0, roadW, H);
-
-  // Kerbs (red-white strips on edges)
-  const kerbW = 8;
-  const kerbH = 30;
-  const kerbOff = scrollY % (kerbH * 2);
-  for (let ky = -kerbOff; ky < H; ky += kerbH * 2) {
-    ctx.fillStyle = '#dd2222';
-    ctx.fillRect(roadLeft,       ky,          kerbW, kerbH);
-    ctx.fillRect(roadRight - kerbW, ky,        kerbW, kerbH);
-    ctx.fillStyle = '#eeeeee';
-    ctx.fillRect(roadLeft,       ky + kerbH,  kerbW, kerbH);
-    ctx.fillRect(roadRight - kerbW, ky + kerbH, kerbW, kerbH);
-  }
-
-  // White edge lines
-  ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.setLineDash([]);
-  ctx.beginPath(); ctx.moveTo(roadLeft,       0); ctx.lineTo(roadLeft,       H); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(roadRight,      0); ctx.lineTo(roadRight,      H); ctx.stroke();
-
-  // Dashed lane markings
-  ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+  // Dashed lane markings on top of the sprite
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
   ctx.lineWidth = 2;
   ctx.setLineDash([28, 20]);
   ctx.lineDashOffset = -(scrollY % 48);
