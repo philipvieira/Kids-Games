@@ -95,6 +95,13 @@ TRAFFIC_VARIANTS.forEach(v => {
   }
 });
 
+// Powerup images
+const POWERUP_IMAGES = {
+  speed     : (() => { const i = new Image(); i.src = 'assets/powerup-speed.png';  return i; })(),
+  invincible: (() => { const i = new Image(); i.src = 'assets/powerup-shield.png'; return i; })(),
+  x2        : (() => { const i = new Image(); i.src = 'assets/powerup-x2.png';     return i; })(),
+};
+
 // ─── Mobile detection (used for speed compensation) ───────────
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
                || (navigator.maxTouchPoints > 1 && window.innerWidth < 900);
@@ -1370,36 +1377,35 @@ function drawPowerups() {
     ctx.save();
     ctx.translate(p.x, p.y);
     ctx.rotate(p.rot);
-    const grd = ctx.createRadialGradient(0, 0, 0, 0, 0, p.w);
-    const fontSize = `${Math.round(p.w * 1.5)}px sans-serif`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
 
+    // Glow circle behind the icon — same colours as before
+    const grd = ctx.createRadialGradient(0, 0, 0, 0, 0, p.w);
     if (p.type === 'speed') {
       grd.addColorStop(0, 'rgba(100,180,255,0.9)');
       grd.addColorStop(1, 'rgba(50,100,255,0)');
-      ctx.fillStyle = grd;
-      ctx.beginPath(); ctx.arc(0, 0, p.w, 0, Math.PI * 2); ctx.fill();
-      ctx.font = fontSize;
-      ctx.fillText('⚡', 0, 2);
     } else if (p.type === 'invincible') {
       grd.addColorStop(0, 'rgba(255,230,50,0.9)');
       grd.addColorStop(1, 'rgba(255,150,0,0)');
-      ctx.fillStyle = grd;
-      ctx.beginPath(); ctx.arc(0, 0, p.w, 0, Math.PI * 2); ctx.fill();
-      ctx.font = fontSize;
-      ctx.fillText('🛡️', 0, 2);
     } else {
-      // x2 points
       grd.addColorStop(0, 'rgba(240,80,255,0.9)');
       grd.addColorStop(1, 'rgba(120,0,200,0)');
-      ctx.fillStyle = grd;
-      ctx.beginPath(); ctx.arc(0, 0, p.w, 0, Math.PI * 2); ctx.fill();
-      ctx.font = `bold ${Math.round(p.w * 1.3)}px Arial`;
-      ctx.fillStyle = '#fff';
-      ctx.shadowColor = '#f0f'; ctx.shadowBlur = 8;
-      ctx.fillText('×2', 0, 2);
-      ctx.shadowBlur = 0;
     }
+    ctx.fillStyle = grd;
+    ctx.beginPath(); ctx.arc(0, 0, p.w, 0, Math.PI * 2); ctx.fill();
+
+    // Draw image centred, same bounding size as before (p.w * 2 square)
+    const img = POWERUP_IMAGES[p.type];
+    if (img && img.complete && img.naturalWidth > 0) {
+      ctx.drawImage(img, -p.w, -p.w, p.w * 2, p.w * 2);
+    } else {
+      // Fallback emoji while image loads
+      ctx.font = `${Math.round(p.w * 1.5)}px sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const fallback = p.type === 'speed' ? '⚡' : p.type === 'invincible' ? '🛡️' : '×2';
+      ctx.fillStyle = '#fff';
+      ctx.fillText(fallback, 0, 2);
+    }
+
     ctx.restore();
   });
 }
