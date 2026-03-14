@@ -576,7 +576,7 @@ const UI = (() => {
   const screens = {};
 
   function init() {
-    ['idle', 'music', 'freeze', 'winner', 'caught'].forEach(id => {
+    ['idle', 'pregame', 'music', 'freeze', 'winner', 'caught'].forEach(id => {
       screens[id] = document.getElementById(`screen-${id}`);
     });
   }
@@ -621,11 +621,12 @@ const UI = (() => {
 ═══════════════════════════════════ */
 const GameState = (() => {
   const STATES = {
-    IDLE:   'idle',
-    MUSIC:  'musicPhase',
-    FREEZE: 'freezePhase',
-    WINNER: 'winner',
-    CAUGHT: 'caught',
+    IDLE:    'idle',
+    PREGAME: 'pregame',
+    MUSIC:   'musicPhase',
+    FREEZE:  'freezePhase',
+    WINNER:  'winner',
+    CAUGHT:  'caught',
   };
 
   let state = STATES.IDLE;
@@ -635,12 +636,13 @@ const GameState = (() => {
 
   /* ── Helpers ─── */
   function randomMusicDuration() {
-    /* First round : 1.5–3 s  — freeze happens quickly so kids learn the cue fast
-       Second round: 2–5 s    — a bit more suspense
-       Third+ rounds: 3–8 s   — full random range */
-    if (roundCount === 1) return (1.5 + Math.random() * 1.5) * 1000;
-    if (roundCount === 2) return (2   + Math.random() * 3)   * 1000;
-    return                       (3   + Math.random() * 5)   * 1000;
+    /* Shorter windows so stops happen more frequently.
+       Round 1: 1–2 s    — first freeze before players get close
+       Round 2: 1.5–3 s  — still quick
+       Round 3+: 2–5 s   — moderate (was 3–8 s) */
+    if (roundCount === 1) return (1.0 + Math.random() * 1.0) * 1000;
+    if (roundCount === 2) return (1.5 + Math.random() * 1.5) * 1000;
+    return                       (2.0 + Math.random() * 3.0) * 1000;
   }
 
 
@@ -653,6 +655,34 @@ const GameState = (() => {
     AudioManager.stopMusic();
     clearTimeout(musicPhaseTimer);
     UI.showScreen('idle');
+  }
+
+  function toPregame() {
+    state = STATES.PREGAME;
+    CountdownManager.stop();
+    MotionDetector.stopDetecting();
+    AudioManager.stopMusic();
+
+    UI.showScreen('pregame');
+
+    /* Animate 3-2-1 using the pregame-count element directly */
+    let count = 3;
+    function tick() {
+      const el = document.getElementById('pregame-count');
+      if (el) {
+        /* Re-trigger pop animation */
+        const clone = el.cloneNode(true);
+        clone.textContent = count;
+        el.parentNode.replaceChild(clone, el);
+      }
+      if (count <= 0) {
+        toMusic();
+        return;
+      }
+      count--;
+      musicPhaseTimer = setTimeout(tick, 1000);
+    }
+    tick();
   }
 
   function toMusic() {
@@ -794,10 +824,6 @@ const GameState = (() => {
   function init() {
     UI.init();
 
-    /* Register extra screens */
-    UI.addScreen('winner');
-    UI.addScreen('caught');
-
     /* Restore toggle states */
     bindToggle('toggle-music',          'music',         v => { if (!v) AudioManager.stopMusic(); });
     bindToggle('toggle-sound',          'sound',         null);
@@ -836,12 +862,12 @@ const GameState = (() => {
     }
 
 
-    /* Start */
+    /* Start → show 3-2-1 pregame countdown first */
     document.getElementById('btn-start').addEventListener('click', () => {
       AudioManager.ensureContext();
       AudioManager.resume();
       SpeechManager.warmUp();
-      toMusic();
+      toPregame();
     });
 
     /* "הגעתי!" — player reached the screen during music phase → WIN */
