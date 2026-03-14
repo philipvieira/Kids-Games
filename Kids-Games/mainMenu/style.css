@@ -180,21 +180,21 @@ body::before {
   justify-content: center;
   overflow: hidden;
   position: relative;
-  background-size: 100% 100%;
+  background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
 }
 
-/* Individual tile backgrounds — each game gets its own cropped button image */
-.btn-purple   { background-image: url('assets/tile-purple.png'); }
-.btn-blue     { background-image: url('assets/tile-blue.png'); }
-.btn-pink     { background-image: url('assets/tile-pink.png'); }
-.btn-yellow   { background-image: url('assets/tile-yellow.png'); }
-.btn-green    { background-image: url('assets/tile-green.png'); }
-.btn-red      { background-image: url('assets/tile-red.png'); }
-.btn-orange   { background-image: url('assets/tile-orange.png'); }
-.btn-cyan     { background-image: url('assets/tile-cyan.png'); }
-.btn-darkblue { background-image: url('assets/tile-darkblue.png'); }
+/* Individual tile backgrounds — each game gets its own button image */
+.btn-purple   { background-image: url('assets/tile-purple.png');   background-color: #7B2FBE; }
+.btn-blue     { background-image: url('assets/tile-blue.png');     background-color: #1A6FD4; }
+.btn-pink     { background-image: url('assets/tile-pink.png');     background-color: #D42090; }
+.btn-yellow   { background-image: url('assets/tile-yellow.png');   background-color: #D4960A; }
+.btn-green    { background-image: url('assets/tile-green.png');    background-color: #38A020; }
+.btn-red      { background-image: url('assets/tile-red.png');      background-color: #C42010; }
+.btn-orange   { background-image: url('assets/tile-orange.png');   background-color: #C46010; }
+.btn-cyan     { background-image: url('assets/tile-cyan.png');     background-color: #10A8C8; }
+.btn-darkblue { background-image: url('assets/tile-darkblue.png'); background-color: #1030A0; }
 
 .card-thumb img.card-screenshot {
   width: 85%;
