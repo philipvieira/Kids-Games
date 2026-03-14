@@ -158,6 +158,7 @@ function goMenu() {
 
 // ─── Car selection ────────────────────────────────────────────
 function selectCar(type) {
+  _unlockAll();   // synchronous inside the tap gesture
   selectedCarType = type;
   document.querySelectorAll('.car-option').forEach(el => {
     el.classList.toggle('selected', el.dataset.car === type);
@@ -197,6 +198,7 @@ function togglePause() {
 
 
 function startGame() {
+  _unlockAll();   // synchronous inside the tap gesture — unlocks both AudioContext and HTMLAudio
   const inp = document.getElementById('driver-name').value.trim();
   driverName   = inp || 'נהג';
   currentLevel = 0;
@@ -1546,46 +1548,76 @@ function renderHighScores() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  SFX  (Web Audio API — generated, no external files)
+//  AUDIO ENGINE  (SFX via Web Audio API + Music via HTMLAudio)
 // ═══════════════════════════════════════════════════════════════
-const _sfxCtx = (() => {
-  try { return new (window.AudioContext || window.webkitAudioContext)(); }
-  catch (e) { return null; }
-})();
+// iOS Chrome / Safari require every audio API to be both created AND
+// first-played synchronously inside a direct user-gesture handler.
+// Strategy:
+//   - Create AudioContext lazily on first gesture (not at parse time).
+//   - Single _unlockAll() called from every interactive button.
+//   - AudioContext.resume() + bgAudio.play()+pause() happen together.
 
-// Unlock the AudioContext on the first user gesture (required by iOS Safari)
-function _unlockSfxCtx() {
+let _sfxCtx       = null;
+let _audioUnlocked = false;
+let _wantMusic     = false;
+
+const _bgAudio    = new Audio();
+_bgAudio.src      = 'assets/8bit race.mp4';
+_bgAudio.loop     = true;
+_bgAudio.volume   = 0.55;
+_bgAudio.preload  = 'auto';
+
+function _unlockAll() {
+  if (_audioUnlocked) return;
+  _audioUnlocked = true;
+
+  // Create and resume AudioContext synchronously inside the gesture
+  if (!_sfxCtx) {
+    try { _sfxCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch (e) { _sfxCtx = null; }
+  }
   if (_sfxCtx && _sfxCtx.state === 'suspended') {
     _sfxCtx.resume().catch(() => {});
   }
+
+  // Unlock the HTMLAudio element with a silent play+pause
+  const p = _bgAudio.play();
+  if (p && typeof p.then === 'function') {
+    p.then(() => { if (!_wantMusic) _bgAudio.pause(); }).catch(() => {});
+  } else {
+    if (!_wantMusic) _bgAudio.pause();
+  }
 }
-document.addEventListener('touchstart', _unlockSfxCtx, { once: true, passive: true });
-document.addEventListener('click',      _unlockSfxCtx, { once: true });
+
+// Belt-and-suspenders: also unlock on first raw touch/click anywhere
+document.addEventListener('touchstart', _unlockAll, { once: true, passive: true });
+document.addEventListener('click',      _unlockAll, { once: true });
 
 function _sfxPlay(buildFn) {
   if (!_sfxCtx) return;
-  if (_sfxCtx.state === 'suspended') _sfxCtx.resume().catch(() => {});
-  buildFn(_sfxCtx);
+  if (_sfxCtx.state === 'suspended') {
+    _sfxCtx.resume().then(() => buildFn(_sfxCtx)).catch(() => {});
+  } else {
+    buildFn(_sfxCtx);
+  }
 }
 
-// Crash: short noise burst + descending pitch drop
+// ── Crash sound: noise burst + descending pitch drop ──────────
 function playCrashSound() {
   _sfxPlay(ctx => {
     const now = ctx.currentTime;
-    // Noise layer
-    const bufLen  = ctx.sampleRate * 0.4;
-    const buffer  = ctx.createBuffer(1, bufLen, ctx.sampleRate);
-    const data    = buffer.getChannelData(0);
-    for (let i = 0; i < bufLen; i++) data[i] = (Math.random() * 2 - 1);
-    const noise   = ctx.createBufferSource();
-    noise.buffer  = buffer;
+    const bufLen = ctx.sampleRate * 0.4;
+    const buffer = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+    const data   = buffer.getChannelData(0);
+    for (let i = 0; i < bufLen; i++) data[i] = Math.random() * 2 - 1;
+    const noise     = ctx.createBufferSource();
+    noise.buffer    = buffer;
     const noiseGain = ctx.createGain();
     noiseGain.gain.setValueAtTime(0.6, now);
     noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
     noise.connect(noiseGain); noiseGain.connect(ctx.destination);
     noise.start(now); noise.stop(now + 0.4);
 
-    // Pitch-drop tone
     const osc  = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = 'sawtooth';
@@ -1598,12 +1630,11 @@ function playCrashSound() {
   });
 }
 
-// Powerup pickup: bright ascending 3-note chime
+// ── Powerup pickup: ascending 3-note chime ────────────────────
 function playPowerupSound() {
   _sfxPlay(ctx => {
     const now   = ctx.currentTime;
-    const notes = [523, 784, 1047]; // C5, G5, C6
-    notes.forEach((freq, i) => {
+    [523, 784, 1047].forEach((freq, i) => {
       const osc  = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = 'sine';
@@ -1618,43 +1649,12 @@ function playPowerupSound() {
   });
 }
 
-
-// iOS Safari requires:
-//   1. An AudioContext (or Audio element) to be "unlocked" by a silent
-//      play triggered from a user-gesture touchstart.
-//   2. The .play() call to be synchronous within the gesture handler.
-// We create the Audio element at load time so the browser can start
-// buffering, then unlock + play on the first user interaction.
-
-const _bgAudio = new Audio();
-_bgAudio.src    = 'assets/8bit race.mp4';
-_bgAudio.loop   = true;
-_bgAudio.volume = 0.55;
-_bgAudio.preload = 'auto';
-let _audioUnlocked = false;
-let _wantMusic     = false;   // true when game is running and music should play
-
-function _unlockAudio() {
-  if (_audioUnlocked) return;
-  _audioUnlocked = true;
-  // Play then immediately pause — this "unlocks" the element on iOS
-  const p = _bgAudio.play();
-  if (p && typeof p.then === 'function') {
-    p.then(() => {
-      if (!_wantMusic) _bgAudio.pause();
-    }).catch(() => {});
-  } else {
-    if (!_wantMusic) _bgAudio.pause();
-  }
-}
-
-// Unlock on the very first touch anywhere on the page (iOS Safari)
-document.addEventListener('touchstart', _unlockAudio, { once: true, passive: true });
-document.addEventListener('click',      _unlockAudio, { once: true });
-
+// ═══════════════════════════════════════════════════════════════
+//  MUSIC  (HTMLAudio element)
+// ═══════════════════════════════════════════════════════════════
 function startMusic() {
   _wantMusic = true;
-  _unlockAudio();
+  _unlockAll();
   const p = _bgAudio.play();
   if (p && typeof p.then === 'function') {
     p.catch(() => {
