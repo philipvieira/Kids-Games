@@ -62,7 +62,7 @@
         card.href      = game.path;
         card.className = 'game-card';
         card.innerHTML = `
-          <div class="card-thumb" style="background: ${game.color}">
+          <div class="card-thumb ${game.btnColor || ''}">
             ${game.thumb
               ? `<img class="card-screenshot" src="${game.thumb}" alt="${game.title}"/>`
               : `<div class="card-icon">${game.icon}</div>`

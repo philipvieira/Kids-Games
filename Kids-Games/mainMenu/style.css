@@ -180,7 +180,30 @@ body::before {
   justify-content: center;
   overflow: hidden;
   position: relative;
+  /* Sprite tile background — overridden per game via .btn-* classes below */
+  background-size: 300% 300%;
+  background-repeat: no-repeat;
 }
+
+/*
+ * Tile button sprite — tile-buttons.png is a 3×3 grid:
+ * col 0=purple  col 1=blue    col 2=pink
+ * col 0=yellow  col 1=green   col 2=red-orange
+ * col 0=orange  col 1=cyan    col 2=dark-blue
+ * background-position: -col*100% -row*100%
+ */
+.card-thumb {
+  background-image: url('assets/tile-buttons.png');
+}
+.btn-purple    { background-position:   0%   0%; }
+.btn-blue      { background-position: 50%   0%; }
+.btn-pink      { background-position: 100%   0%; }
+.btn-yellow    { background-position:   0%  50%; }
+.btn-green     { background-position:  50%  50%; }
+.btn-red       { background-position: 100%  50%; }
+.btn-orange    { background-position:   0% 100%; }
+.btn-cyan      { background-position:  50% 100%; }
+.btn-darkblue  { background-position: 100% 100%; }
 
 .card-thumb img.card-screenshot {
   width: 85%;
