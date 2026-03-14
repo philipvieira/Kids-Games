@@ -26,11 +26,16 @@ const MOLE_TYPES = {
 const NORMAL_MOLE_IMGS = [
   'assets/moles/normal1.png',
   'assets/moles/normal2.png',
-  'assets/moles/normal3.png',
   'assets/moles/normal4.png',
   'assets/moles/normal5.png',
   'assets/moles/normal6.png',
   'assets/moles/normal7.png',
+];
+
+// Bomb mole image variants (picked randomly)
+const BOMB_MOLE_IMGS = [
+  'assets/moles/bomb.png',
+  'assets/moles/normal3.png',
 ];
 
 // Weights [normal, golden, bomb, fast, triple]
@@ -303,6 +308,8 @@ function popMole(idx, type, visTime) {
   var imgSrc = info.img;
   if (type === 'normal') {
     imgSrc = NORMAL_MOLE_IMGS[Math.floor(Math.random() * NORMAL_MOLE_IMGS.length)];
+  } else if (type === 'bomb') {
+    imgSrc = BOMB_MOLE_IMGS[Math.floor(Math.random() * BOMB_MOLE_IMGS.length)];
   }
   h.moleImg.src = imgSrc;
   h.moleInner.classList.remove('whacked');
