@@ -26,7 +26,7 @@ const GAMES = [
     icon:  '✖️',
     color: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     path:  '../multiplicationGame/index.html',
-    thumb: '',
+    thumb: '../multiplicationGame/assets/thumb.png',
   },
 
   {
@@ -36,7 +36,7 @@ const GAMES = [
     icon:  '🏓',
     color: 'linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)',
     path:  '../pongGame/index.html',
-    thumb: '',
+    thumb: '../pongGame/assets/thumb.png',
   },
 
   {
@@ -46,7 +46,7 @@ const GAMES = [
     icon:  '🚀',
     color: 'linear-gradient(135deg, #05070f 0%, #0d1b2a 50%, #1a0533 100%)',
     path:  '../spaceGame/index.html',
-    thumb: '',
+    thumb: '../spaceGame/assets/thumb.png',
   },
 
   {
@@ -66,7 +66,7 @@ const GAMES = [
     icon:  '🎨',
     color: 'linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%)',
     path:  '../colorCatcher/index.html',
-    thumb: '',
+    thumb: '../colorCatcher/assets/thumb.png',
   },
 
   {
