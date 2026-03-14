@@ -56,7 +56,7 @@ const GAMES = [
     icon:  '🃏',
     color: 'linear-gradient(135deg, #1a1a2e 0%, #3a0ca3 50%, #7209b7 100%)',
     path:  '../memoryGame/index.html',
-    thumb: '',
+    thumb: '../memoryGame/assets/thumb.png',
   },
 
   {
@@ -76,7 +76,7 @@ const GAMES = [
     icon:  '✨',
     color: 'linear-gradient(135deg, #1a1040 0%, #2d1b69 50%, #4c1d95 100%)',
     path:  '../matchGame/index.html',
-    thumb: '',
+    thumb: '../matchGame/assets/thumb.png',
   },
 
   {
@@ -86,7 +86,7 @@ const GAMES = [
     icon:  '🏗️',
     color: 'linear-gradient(135deg, #1a6ba0 0%, #2a9fd4 50%, #87ceeb 100%)',
     path:  '../builderGame/index.html',
-    thumb: '',
+    thumb: '../builderGame/assets/thumb.png',
   },
 
   {
