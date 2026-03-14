@@ -160,11 +160,15 @@ body {
   display: flex; flex-direction: column; gap: 5px;
   align-items: center; flex: 0 1 auto;
 }
-.hud-item { color: #ffe000; font-weight: bold; white-space: nowrap; }
+.hud-item { color: #ffe000; font-weight: bold; white-space: nowrap; display: flex; align-items: center; gap: 4px; }
+
+/* HUD icon images — sized to match the old emoji font-size at each breakpoint */
+.hud-icon { width: 2rem; height: 2rem; object-fit: contain; flex-shrink: 0; -webkit-user-drag: none; vertical-align: middle; }
+.hud-heart { width: 1.7rem; height: 1.7rem; }
 
 .hud-timer     { font-size: 2rem; }
 .hud-score     { font-size: 2rem; }
-#lives-display { font-size: 2rem; }
+#lives-display { font-size: 2rem; display: flex; align-items: center; gap: 2px; }
 
 .hud-level-badge {
   color: #fff; font-size: 1.4rem; font-weight: bold;
@@ -184,7 +188,8 @@ body {
   box-shadow: 0 0 8px rgba(80,200,255,0.6);
 }
 .progress-flag {
-  position: absolute; right: -26px; top: -6px; font-size: 1.8rem; line-height: 1;
+  position: absolute; right: -26px; top: -6px; width: 1.8rem; height: 1.8rem;
+  object-fit: contain; -webkit-user-drag: none;
 }
 
 .powerup-slots {
@@ -219,7 +224,9 @@ body {
   .hud-level-badge { font-size: 1.6rem; }
   .hud-level-badge span { font-size: 2rem; }
   .progress-wrap { width: min(700px, 42vw); height: 18px; }
-  .progress-flag { font-size: 2rem; right: -28px; }
+  .progress-flag { width: 2rem; height: 2rem; right: -28px; }
+  .hud-icon  { width: 2.4rem; height: 2.4rem; }
+  .hud-heart { width: 2rem;   height: 2rem; }
   .powerup-slot-icon { width: 1.3rem; height: 1.3rem; }
   .x2-badge { font-size: 1.1rem; padding: 2px 7px; }
   .powerup-slot-bar-wrap { width: 65px; }
@@ -253,13 +260,15 @@ body {
 
   .hud-timer, .hud-score { font-size: 1rem; line-height: 1.2; }
   #lives-display { font-size: 1rem; }
+  .hud-icon  { width: 1rem; height: 1rem; }
+  .hud-heart { width: 0.9rem; height: 0.9rem; }
 
   .hud-level-badge { font-size: 0.78rem; padding: 1px 8px; border-width: 1px; }
   .hud-level-badge span { font-size: 0.92rem; }
 
   /* Progress bar stretches nearly full width */
   .progress-wrap { width: calc(100vw - 28px); height: 9px; }
-  .progress-flag { font-size: 1rem; right: -14px; top: -3px; }
+  .progress-flag { width: 1rem; height: 1rem; right: -14px; top: -3px; }
 
   .powerup-slot  { padding: 1px 4px; }
   .powerup-slot-icon { width: 0.78rem; height: 0.78rem; }

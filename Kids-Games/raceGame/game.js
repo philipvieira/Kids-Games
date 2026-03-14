@@ -264,7 +264,13 @@ function initLevel(lvl) {
 
 function updateLivesDisplay() {
   const el = document.getElementById('lives-display');
-  if (el) el.textContent = '❤️'.repeat(Math.max(0, lives)) || '💀';
+  if (!el) return;
+  const count = Math.max(0, lives);
+  if (count === 0) {
+    el.innerHTML = '💀';
+  } else {
+    el.innerHTML = '<img class="hud-icon hud-heart" src="assets/hud-heart.png" alt="❤️" />'.repeat(count);
+  }
 }
 
 // ─── Traffic Spawning ─────────────────────────────────────────
