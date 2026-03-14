@@ -608,13 +608,6 @@ const GameState = (() => {
     return (3 + Math.random() * 5) * 1000;  /* 3–8 seconds */
   }
 
-  /* Apply .ai-active class to freeze screen so CSS hides manual button */
-  function syncAiClass() {
-    const freezeScreen = document.getElementById('screen-freeze');
-    if (!freezeScreen) return;
-    if (settings.ai) freezeScreen.classList.add('ai-active');
-    else             freezeScreen.classList.remove('ai-active');
-  }
 
   /* ── State transitions ─── */
   function toIdle() {
@@ -649,7 +642,6 @@ const GameState = (() => {
     setTimeout(() => SpeechManager.say('דג מלוח!'), 300);
 
     UI.showScreen('freeze');
-    syncAiClass();
 
     /* Start AI detection only during freeze */
     if (settings.ai && MotionDetector.hasStream()) {
@@ -745,7 +737,6 @@ const GameState = (() => {
     }
 
     UI.updateCameraPreview(settings.ai && settings.cameraPreview);
-    syncAiClass();
     SettingsStorage.save(settings);
   }
 
@@ -818,11 +809,6 @@ const GameState = (() => {
     /* "הגעתי!" — player reached the screen during music phase → WIN */
     document.getElementById('btn-reached').addEventListener('click', () => {
       if (state === STATES.MUSIC) toWinner();
-    });
-
-    /* "תפסתי!" — manual referee tap during freeze → CAUGHT (no-AI fallback) */
-    document.getElementById('btn-caught').addEventListener('click', () => {
-      if (state === STATES.FREEZE) toCaught('');
     });
 
     /* Winner screen buttons */

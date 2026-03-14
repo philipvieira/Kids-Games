@@ -129,16 +129,8 @@ html, body {
   margin-top: 8px;
 }
 
-.btn-caught {
-  background: linear-gradient(135deg, #ff4d4d, #c0392b);
-  color: #fff;
-  font-size: 1.6rem;
-  padding: 20px 50px;
-  border-radius: 32px;
-  min-width: 220px;
-  margin-top: 24px;
-  box-shadow: 0 0 30px rgba(255,77,77,0.5);
-}
+
+
 
 /* ── Animations ───────────────────────────────────────── */
 @keyframes pulse {
@@ -206,9 +198,11 @@ html, body {
   max-width: 500px;
 }
 
-.fish-emoji {
-  font-size: 5rem;
+.game-logo {
+  width: clamp(180px, 55vw, 300px);
+  height: auto;
   animation: float 3s ease-in-out infinite;
+  filter: drop-shadow(0 4px 16px rgba(0,0,0,0.5));
 }
 
 .game-title {
@@ -331,9 +325,11 @@ html, body {
   text-align: center;
 }
 
-.phase-fish {
-  font-size: 6rem;
+.phase-logo {
+  width: clamp(140px, 40vw, 220px);
+  height: auto;
   animation: float 1.5s ease-in-out infinite;
+  filter: drop-shadow(0 4px 16px rgba(0,0,0,0.4));
 }
 
 .phase-hint {
@@ -475,8 +471,8 @@ html, body {
   min-height: 2rem;
 }
 
-/* Hide manual "תפסתי!" button when AI mode is active */
-.ai-active #btn-caught { display: none !important; }
+
+
 
 /* ── Camera Preview ───────────────────────────────────── */
 .camera-preview {
@@ -549,7 +545,8 @@ html, body {
 }
 
 @media (max-height: 600px) and (orientation: landscape) {
-  .fish-emoji, .phase-fish { font-size: 3rem; }
+  .game-logo { width: 140px; }
+  .phase-logo { width: 100px; }
   .game-title { font-size: 2.4rem; }
   .freeze-label { font-size: 3.5rem; }
   .countdown { font-size: 10rem; }
