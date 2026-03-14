@@ -76,22 +76,40 @@ body {
   -webkit-user-drag: none;
 }
 
-/* Instructions */
-.instructions-box {
-  background: rgba(255,255,255,.05); border-radius: 12px;
-  padding: 14px 16px; margin-bottom: 14px; direction: rtl; text-align: right;
+/* How-to-play button */
+.btn-how {
+  display: block; width: 100%; padding: 10px 16px; margin-bottom: 12px;
+  background: rgba(255,255,255,.1); border: 1.5px solid rgba(255,255,255,.25);
+  border-radius: 12px; color: #ffe; font-size: 1rem; font-family: inherit;
+  cursor: pointer; text-align: center; transition: background 0.15s;
+  touch-action: manipulation;
 }
-.instructions-box h2   { color: #ffe000; margin-bottom: 8px; font-size: 1.1rem; }
-.instructions-box p    { color: #ddd; font-size: 1rem; line-height: 2; }
+.btn-how:hover { background: rgba(255,255,255,.18); }
+
+/* How-to-play modal */
+#how-modal { display: none; }
+.how-box {
+  background: #1a1040; border: 1.5px solid rgba(255,220,0,.25);
+  border-radius: 20px; padding: 24px 20px;
+  max-width: 480px; width: 100%; max-height: 82vh; overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.85);
+  direction: rtl; text-align: right;
+}
+.how-title { color: #ffe000; font-size: 1.2rem; text-align: center; margin-bottom: 14px; }
+.how-box p  { color: #ddd; font-size: 0.95rem; line-height: 1.8; }
+.btn-how-close {
+  display: block; width: 100%; margin-top: 18px; padding: 10px;
+  background: linear-gradient(135deg,#f44,#c22); border: none; border-radius: 12px;
+  color: #fff; font-size: 1rem; font-family: inherit; font-weight: bold;
+  cursor: pointer; touch-action: manipulation;
+}
+.btn-how-close:hover { background: linear-gradient(135deg,#f66,#e33); }
+
+/* Instructions (used inside modal) */
 .powerup-title         { color: #ffe000; font-size: 1rem; margin: 10px 0 6px; }
 .powerup-legend        { display: flex; flex-direction: column; gap: 9px; }
 .powerup-legend-item   { display: flex; align-items: center; gap: 12px; color: #ddd; font-size: 0.92rem; }
 .pu-icon               { width: 2.2rem; height: 2.2rem; flex-shrink: 0; object-fit: contain; -webkit-user-drag: none; }
-.pu-x2                 {
-  font-size: 1.4rem; font-weight: bold; color: #fff;
-  background: linear-gradient(135deg,#f0f,#a0f);
-  border-radius: 6px; padding: 1px 6px; width: auto;
-}
 
 .btn-start {
   display: block; width: 100%; padding: 12px; font-size: 1.15rem; font-weight: bold;

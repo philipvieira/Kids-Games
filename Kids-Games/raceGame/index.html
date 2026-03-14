@@ -43,26 +43,31 @@
         </div>
       </div>
 
-      <div class="instructions-box">
-        <h2>איך משחקים?</h2>
-        <p>👆 <strong>לחץ שמאל</strong> / ← לנוע שמאלה &nbsp;|&nbsp; <strong>לחץ ימין</strong> / → לנוע ימינה</p>
-        <p>⚡ הימנע ממכוניות! &nbsp;🏁 הגע לקו הסיום לפני שהזמן נגמר! &nbsp;❤️ 3 חיים</p>
-        <h3 class="powerup-title">פריטי כוח:</h3>
-        <div class="powerup-legend">
-          <div class="powerup-legend-item">
-            <img class="pu-icon" src="assets/powerup-speed.png" alt="מהירות" />
-            <span><strong>מהירות</strong> — נסיעה מהירה יותר לזמן קצר</span>
+      <div class="instructions-box" id="how-modal" style="display:none; position:fixed; inset:0; z-index:50; background:rgba(0,0,0,0.82); backdrop-filter:blur(6px); align-items:center; justify-content:center; padding:20px;">
+        <div class="how-box">
+          <h2 class="how-title">🏎️ איך משחקים?</h2>
+          <p>👆 <strong>לחץ שמאל</strong> / ← לנוע שמאלה &nbsp;|&nbsp; <strong>לחץ ימין</strong> / → לנוע ימינה</p>
+          <p style="margin-top:8px;">⚡ הימנע ממכוניות! &nbsp;🏁 הגע לקו הסיום לפני שהזמן נגמר! &nbsp;❤️ 3 חיים</p>
+          <h3 class="powerup-title">פריטי כוח:</h3>
+          <div class="powerup-legend">
+            <div class="powerup-legend-item">
+              <img class="pu-icon" src="assets/powerup-speed.png" alt="מהירות" />
+              <span><strong>מהירות</strong> — נסיעה מהירה יותר לזמן קצר</span>
+            </div>
+            <div class="powerup-legend-item">
+              <img class="pu-icon" src="assets/powerup-shield.png" alt="חוסן" />
+              <span><strong>חוסן</strong> — חסין לפגיעות לזמן קצר</span>
+            </div>
+            <div class="powerup-legend-item">
+              <img class="pu-icon" src="assets/powerup-x2.png" alt="ניקוד כפול" />
+              <span><strong>ניקוד כפול</strong> — צובר ניקוד פי 2 מהר יותר לזמן קצר</span>
+            </div>
           </div>
-          <div class="powerup-legend-item">
-            <img class="pu-icon" src="assets/powerup-shield.png" alt="חוסן" />
-            <span><strong>חוסן</strong> — חסין לפגיעות לזמן קצר</span>
-          </div>
-          <div class="powerup-legend-item">
-            <img class="pu-icon" src="assets/powerup-x2.png" alt="ניקוד כפול" />
-            <span><strong>ניקוד כפול</strong> — צובר ניקוד פי 2 מהר יותר לזמן קצר</span>
-          </div>
+          <button class="btn-how-close" onclick="document.getElementById('how-modal').style.display='none'">סגור ✕</button>
         </div>
       </div>
+
+      <button class="btn-how" onclick="document.getElementById('how-modal').style.display='flex'">❓ איך משחקים?</button>
 
       <button class="btn-start" onclick="startGame()">🚦 התחל משחק!</button>
 
