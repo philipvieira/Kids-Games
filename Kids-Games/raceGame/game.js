@@ -110,9 +110,15 @@ function resize() {
   H = canvas.height = window.innerHeight;
   roadSpriteH = H;
 
-  // On mobile: full-width road. On desktop: centered road with city/beach sides.
-  const roadFrac = W < 480 ? 0.92 : W < 680 ? 0.80 : 0.70;
-  const roadW = Math.min(W * roadFrac, 520);
+  // Mobile: road fills the full screen width. Desktop: centered road with city/beach sides.
+  const isMobile = W <= 768;
+  let roadW;
+  if (isMobile) {
+    roadW = W;
+  } else {
+    const roadFrac = W < 680 ? 0.80 : 0.70;
+    roadW = Math.min(W * roadFrac, 520);
+  }
   roadLeft  = (W - roadW) / 2;
   roadRight = roadLeft + roadW;
   laneW     = roadW / LANES;
