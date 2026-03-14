@@ -29,7 +29,7 @@ const TYPE_KEYS    = ['normal', 'golden', 'bomb', 'fast', 'triple'];
 const DIFF_CFG = {
   easy: {
     gameDuration:  55,
-    startDelay:    3000,   // ms before first mole pops (3 seconds)
+    startDelay:    1000,   // ms before first mole pops
     baseInterval:  1500,   // ms between spawn attempts at t=0
     minInterval:   700,    // fastest it can get
     baseVisTime:   2400,   // ms mole visible (normal, at t=0)
@@ -38,7 +38,7 @@ const DIFF_CFG = {
   },
   normal: {
     gameDuration:  45,
-    startDelay:    1500,   // ms before first mole pops (1.5 seconds)
+    startDelay:    1000,   // ms before first mole pops
     baseInterval:  1200,
     minInterval:   500,
     baseVisTime:   1800,
@@ -47,7 +47,7 @@ const DIFF_CFG = {
   },
   hard: {
     gameDuration:  40,
-    startDelay:    0,      // moles pop immediately
+    startDelay:    1000,   // ms before first mole pops
     baseInterval:  900,
     minInterval:   350,
     baseVisTime:   1100,
@@ -472,18 +472,28 @@ function startCountdown() {
     updateHUD();
     if (GS.timeLeft <= 5)  el.hudTime.classList.add('urgent');
     if (GS.timeLeft <= 0)  endGame();
-
-    // Only update spawn speed once the start delay has finished
-    if (!startDelayTimer) restartSpawnLoop();
+    // No spawn loop restart here — the self-scheduling spawn loop handles its own timing
   }, 1000);
 }
 
-function restartSpawnLoop() {
-  clearInterval(spawnTimer);
-  spawnTimer = setInterval(function() {
-    if (!GS.running || GS.paused) return;
+// Self-scheduling spawn loop: schedules itself using the current (ramped) interval.
+// This avoids the bug where setInterval restarts from scratch every second.
+function scheduleNextSpawn() {
+  clearTimeout(spawnTimer);
+  spawnTimer = setTimeout(function() {
+    if (!GS.running || GS.paused) {
+      // Paused — will be rescheduled on resume
+      return;
+    }
     spawnMole();
+    scheduleNextSpawn();
   }, currentInterval());
+}
+
+// Keep restartSpawnLoop as an alias used on resume / start
+function restartSpawnLoop() {
+  clearTimeout(spawnTimer);
+  scheduleNextSpawn();
 }
 
 // ════════════════════════════════════════════════════════════
@@ -597,7 +607,7 @@ function goToMenu() {
 
 function stopTimers() {
   clearInterval(countdownTimer);
-  clearInterval(spawnTimer);
+  clearTimeout(spawnTimer);
   clearTimeout(startDelayTimer);
   countdownTimer  = null;
   spawnTimer      = null;
