@@ -45,7 +45,7 @@ let roadSpriteH = 0;   // set in resize(), equals H
 const ROAD_IMG_1 = new Image();
 let roadImagesLoaded = 0;
 ROAD_IMG_1.onload = () => { roadImagesLoaded++; };
-ROAD_IMG_1.src = 'assets/road1.png';
+ROAD_IMG_1.src = 'assets/road2.png';
 let powerupsActive = {};   // { speed: {endTime, startTime}, invincible: {...}, x2: {...} }
 let loopId = null;
 let frameCount = 0;
