@@ -16,12 +16,6 @@
   animation: pulse 1.6s ease-in-out infinite;
 }
 .splash-icon { font-size: 5rem; margin-bottom: 16px; }
-.splash-logo {
-  width: clamp(260px, 70vw, 480px);
-  height: auto;
-  margin-bottom: 20px;
-  filter: drop-shadow(0 4px 24px rgba(0,0,0,0.5));
-}
 .splash-content h2 {
   font-size: 2.8rem; font-weight: 900;
   color: #ffe000;
@@ -68,13 +62,6 @@ body::before {
 .site-header {
   text-align: center;
   margin-bottom: 50px;
-}
-
-.header-logo {
-  width: clamp(240px, 60vw, 520px);
-  height: auto;
-  filter: drop-shadow(0 4px 20px rgba(0,0,0,0.5));
-  margin-bottom: 8px;
 }
 
 .site-header h1 {
