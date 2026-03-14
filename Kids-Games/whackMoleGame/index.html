@@ -31,7 +31,6 @@
     </div>
 
     <button class="btn-primary" id="btn-start">▶ התחל</button>
-
     <button class="btn-secondary" id="btn-howto">❓ איך משחקים</button>
   </div>
 </div>
@@ -46,7 +45,9 @@
     <div class="how-row"><span class="hi">⭐</span><span>חפרפרת זהובה = ניקוד כפול!</span></div>
     <div class="how-row"><span class="hi">💣</span><span>חפרפרת פצצה = מינוס ניקוד!</span></div>
     <div class="how-row"><span class="hi">⚡</span><span>חפרפרת מהירה = צצה ונעלמת מהר</span></div>
-    <div class="how-row"><span class="hi">⏱️</span><span>המשחק נמשך 45 שניות — צבור כמה שיותר ניקוד!</span></div>
+    <div class="how-row"><span class="hi">🎉</span><span>חפרפרת מסיבה = מכה אותה ו-3 חדשות יצוצו!</span></div>
+    <div class="how-row"><span class="hi">❤️</span><span>יש לך 3 לבבות — תאבד לב אם תלחץ על חור ריק</span></div>
+    <div class="how-row"><span class="hi">⏱️</span><span>המשחק מתחיל לאט — ומאיץ ככל שהזמן עובר!</span></div>
     <button class="btn-primary" id="btn-howto-close">סגור</button>
   </div>
 </div>
@@ -72,9 +73,16 @@
     <button class="pause-btn" id="btn-pause">⏸</button>
   </div>
 
+  <!-- Hearts row -->
+  <div id="hearts-row">
+    <span class="heart" id="heart-0">❤️</span>
+    <span class="heart" id="heart-1">❤️</span>
+    <span class="heart" id="heart-2">❤️</span>
+  </div>
+
   <div id="game-area">
+    <!-- Holes are rendered as <canvas> tiles built by JS -->
     <div id="grid" class="grid"></div>
-    <div id="float-msg" class="float-msg" style="display:none"></div>
   </div>
 
 </div>
