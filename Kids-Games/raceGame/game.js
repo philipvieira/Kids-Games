@@ -1546,27 +1546,75 @@ function renderHighScores() {
 // ═══════════════════════════════════════════════════════════════
 //  MUSIC
 // ═══════════════════════════════════════════════════════════════
-// Lazily created on first user gesture — mobile browsers (iOS Safari,
-// Android Chrome, Samsung Internet) block Audio() play() unless it
-// originates directly from a user interaction.
-let _bgAudio = null;
+// iOS Safari requires:
+//   1. An AudioContext (or Audio element) to be "unlocked" by a silent
+//      play triggered from a user-gesture touchstart.
+//   2. The .play() call to be synchronous within the gesture handler.
+// We create the Audio element at load time so the browser can start
+// buffering, then unlock + play on the first user interaction.
 
-function _ensureAudio() {
-  if (_bgAudio) return;
-  _bgAudio = new Audio('assets/8bit race.mp4');
-  _bgAudio.loop   = true;
-  _bgAudio.volume = 0.55;
+const _bgAudio = new Audio();
+_bgAudio.src    = 'assets/8bit race.mp4';
+_bgAudio.loop   = true;
+_bgAudio.volume = 0.55;
+_bgAudio.preload = 'auto';
+let _audioUnlocked = false;
+let _wantMusic     = false;   // true when game is running and music should play
+
+function _unlockAudio() {
+  if (_audioUnlocked) return;
+  _audioUnlocked = true;
+  // Play then immediately pause — this "unlocks" the element on iOS
+  const p = _bgAudio.play();
+  if (p && typeof p.then === 'function') {
+    p.then(() => {
+      if (!_wantMusic) _bgAudio.pause();
+    }).catch(() => {});
+  } else {
+    if (!_wantMusic) _bgAudio.pause();
+  }
 }
 
+// Unlock on the very first touch anywhere on the page (iOS Safari)
+document.addEventListener('touchstart', _unlockAudio, { once: true, passive: true });
+document.addEventListener('click',      _unlockAudio, { once: true });
+
 function startMusic() {
-  _ensureAudio();
-  _bgAudio.play().catch(() => {});
+  _wantMusic = true;
+  _unlockAudio();
+  const p = _bgAudio.play();
+  if (p && typeof p.then === 'function') {
+    p.catch(() => {
+      // Still blocked — show a tap-to-play banner
+      _showMusicBanner();
+    });
+  }
 }
 
 function stopMusic() {
-  if (!_bgAudio) return;
+  _wantMusic = false;
   _bgAudio.pause();
   _bgAudio.currentTime = 0;
+}
+
+function _showMusicBanner() {
+  let banner = document.getElementById('music-banner');
+  if (banner) return;
+  banner = document.createElement('div');
+  banner.id = 'music-banner';
+  banner.textContent = '🎵 הקש כדי להפעיל מוזיקה';
+  Object.assign(banner.style, {
+    position: 'fixed', bottom: '70px', left: '50%', transform: 'translateX(-50%)',
+    background: 'rgba(0,0,0,0.75)', color: '#ffe000', padding: '8px 20px',
+    borderRadius: '20px', fontSize: '1rem', zIndex: '9999',
+    fontFamily: 'inherit', cursor: 'pointer', touchAction: 'manipulation',
+  });
+  banner.addEventListener('click', () => {
+    _bgAudio.play().catch(() => {});
+    banner.remove();
+  }, { once: true });
+  document.body.appendChild(banner);
+  setTimeout(() => { if (banner.parentNode) banner.remove(); }, 5000);
 }
 
 // ═══════════════════════════════════════════════════════════════
