@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>משחקי ילדים</title>
-  <link rel="stylesheet" href="style.css?v=2" />
+  <link rel="stylesheet" href="style.css?v=3" />
 </head>
 <body>
 
@@ -59,14 +59,16 @@
         const card = document.createElement('a');
         card.href      = game.path;
         card.className = 'game-card';
-        card.style.background = game.color;
         card.innerHTML = `
-          <div class="card-icon">${game.icon}</div>
-          <div class="card-body">
-            <h2 class="card-title">${game.title}</h2>
-            <p class="card-desc">${game.desc}</p>
+          <div class="card-thumb" style="background: ${game.color}">
+            ${game.thumb
+              ? `<img class="card-screenshot" src="${game.thumb}" alt="${game.title}"/>`
+              : `<div class="card-icon">${game.icon}</div>`
+            }
           </div>
-          <div class="card-arrow">◄</div>
+          <div class="card-label">
+            <span class="card-title">${game.title}</span>
+          </div>
         `;
         grid.appendChild(card);
       });
