@@ -88,16 +88,14 @@ const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
 function resize() {
   W = canvas.width  = window.innerWidth;
   H = canvas.height = window.innerHeight;
-  roadSpriteH = H;  // each sprite tile fills the full screen height
+  roadSpriteH = H;
 
-  // Road image is 682px wide — we stretch it to fill the full canvas width.
-  // The road occupies the center; kerbs and trees are baked into the image.
-  // We still expose roadLeft/roadRight/laneW so traffic/player logic works.
-  // The image has ~8% kerb on each side, so the driveable area is ~84% of width.
-  const kerbFrac = 0.10;   // fraction of road image that is kerb+grass on each side
-  roadLeft  = W * kerbFrac;
-  roadRight = W * (1 - kerbFrac);
-  laneW     = (roadRight - roadLeft) / LANES;
+  // On mobile: full-width road. On desktop: centered road with city/beach sides.
+  const roadFrac = W < 480 ? 0.92 : W < 680 ? 0.80 : 0.70;
+  const roadW = Math.min(W * roadFrac, 520);
+  roadLeft  = (W - roadW) / 2;
+  roadRight = roadLeft + roadW;
+  laneW     = roadW / LANES;
 
   if (player) {
     player.x = clamp(player.x, roadLeft + laneW * 0.5, roadRight - laneW * 0.5);
@@ -618,6 +616,9 @@ function spawnBurst(x, y, color) {
 // ═══════════════════════════════════════════════════════════════
 function draw() {
   ctx.clearRect(0, 0, W, H);
+  // Side backgrounds (city left, beach right) — only drawn when road doesn't fill screen
+  if (roadLeft > 0) drawCity(0, roadLeft);
+  if (roadRight < W) drawBeach(roadRight, W);
   drawRoadSprites();
   drawRoad();           // lane dash overlay on top of sprite
   drawFinishLine();
@@ -636,28 +637,34 @@ function draw() {
 // We alternate which image (road1/road2) goes on top each cycle for visual variety.
 let _roadCycle = 0;
 function drawRoadSprites() {
-  const sh = H; // sprite drawn height = full screen
-  const offset = roadScrollY;
+  const roadW = roadRight - roadLeft;
+  const sh    = H; // sprite drawn height = full screen height
 
-  // Pick which image goes on top vs bottom (alternate each full cycle)
   const imgA = (_roadCycle % 2 === 0) ? ROAD_IMG_1 : ROAD_IMG_2;
   const imgB = (_roadCycle % 2 === 0) ? ROAD_IMG_2 : ROAD_IMG_1;
 
-  // Fallback: if images haven't loaded yet, draw a plain dark road
+  // Clip drawing to the road area so the sprite doesn't bleed over city/beach
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(roadLeft, 0, roadW, H);
+  ctx.clip();
+
   if (roadImagesLoaded === 0) {
+    // Fallback while images load
     ctx.fillStyle = '#303030';
-    ctx.fillRect(0, 0, W, H);
+    ctx.fillRect(roadLeft, 0, roadW, H);
+    ctx.restore();
     drawRoadFallback();
     return;
   }
 
-  // Tile B: fills from offset downward (the main visible tile)
-  ctx.drawImage(imgB, 0, offset, W, sh);
-  // Tile A: sits directly above tile B (scrolls in from the top)
-  ctx.drawImage(imgA, 0, offset - sh, W, sh);
+  const offset = roadScrollY;
+  // Tile B: the main visible tile
+  ctx.drawImage(imgB, roadLeft, offset, roadW, sh);
+  // Tile A: scrolls in from above
+  ctx.drawImage(imgA, roadLeft, offset - sh, roadW, sh);
 
-  // Detect wrap-around — when offset is about to pass H, increment cycle
-  // (handled by the modulo in update, but we track it for image alternation)
+  ctx.restore();
 }
 
 // Called on each wrap of roadScrollY so images alternate
