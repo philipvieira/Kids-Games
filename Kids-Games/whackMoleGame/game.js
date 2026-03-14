@@ -14,18 +14,19 @@ const MAX_LIVES   = 3;
 
 // Mole types
 // triple: hit it and 3 normal moles instantly pop up in random empty holes
+// king: rare mole worth double points (20)
 const MOLE_TYPES = {
-  normal: { img: null,              points: 10,  label: 'יפה!',    cls: '',       visRatio: 1.0  },
-  golden: { img: 'assets/moles/golden.png',      points: 30,  label: '!מצוין',  cls: 'gold',   visRatio: 1.2  },
-  bomb:   { img: 'assets/moles/bomb.png',        points: -20, label: '!בום',    cls: 'bomb',   visRatio: 1.0  },
-  fast:   { img: 'assets/moles/fast.png',        points: 15,  label: 'מהיר!',   cls: '',       visRatio: 0.45 },
-  triple: { img: 'assets/moles/triple.png',      points: 20,  label: 'שלושה!', cls: 'triple', visRatio: 0.7  },
+  normal: { img: null,                               points: 10,  label: 'יפה!',     cls: '',       visRatio: 1.0  },
+  golden: { img: 'assets/moles/golden.png',          points: 30,  label: '!מצוין',   cls: 'gold',   visRatio: 1.2  },
+  bomb:   { img: 'assets/moles/bomb.png',            points: -20, label: '!בום',     cls: 'bomb',   visRatio: 1.0  },
+  fast:   { img: 'assets/moles/fast.png',            points: 15,  label: 'מהיר!',    cls: '',       visRatio: 0.45 },
+  triple: { img: 'assets/moles/triple.png',          points: 20,  label: 'שלושה!',  cls: 'triple', visRatio: 0.7  },
+  king:   { img: 'assets/moles/king.png',            points: 20,  label: '👑 מלך!',  cls: 'gold',   visRatio: 1.1  },
 };
 
 // Normal mole image variants (picked randomly)
 const NORMAL_MOLE_IMGS = [
   'assets/moles/normal1.png',
-  'assets/moles/normal2.png',
   'assets/moles/normal4.png',
   'assets/moles/normal5.png',
   'assets/moles/normal6.png',
@@ -38,9 +39,9 @@ const BOMB_MOLE_IMGS = [
   'assets/moles/bomb2.png',
 ];
 
-// Weights [normal, golden, bomb, fast, triple]
-const TYPE_WEIGHTS = [58, 12, 12, 10, 8];
-const TYPE_KEYS    = ['normal', 'golden', 'bomb', 'fast', 'triple'];
+// Weights [normal, golden, bomb, fast, triple, king]
+const TYPE_WEIGHTS = [52, 12, 12, 10, 8, 6];
+const TYPE_KEYS    = ['normal', 'golden', 'bomb', 'fast', 'triple', 'king'];
 
 const DIFF_CFG = {
   easy: {
