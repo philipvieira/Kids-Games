@@ -58,6 +58,14 @@ html, body {
   text-align: center; line-height: 1.1;
   padding: 16px 8px 10px;
   animation: titleBounce 2.8s ease-in-out infinite;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.title-mole-img {
+  width: clamp(40px, 10vw, 60px);
+  height: clamp(40px, 10vw, 60px);
+  object-fit: contain;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.5));
+  flex-shrink: 0;
 }
 @keyframes titleBounce {
   0%,100% { transform: translateY(0) rotate(-1deg); }
