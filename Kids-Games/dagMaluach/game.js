@@ -783,7 +783,22 @@ const GameState = (() => {
     bindToggle('toggle-music',          'music',         v => { if (!v) AudioManager.stopMusic(); });
     bindToggle('toggle-sound',          'sound',         null);
     bindToggle('toggle-voice',          'voice',         null);
-    bindToggle('toggle-ai',             'ai',            null);
+    bindToggle('toggle-ai', 'ai', async (enabled) => {
+      if (enabled && !MotionDetector.hasStream()) {
+        AudioManager.resume();
+        const ok = await MotionDetector.requestCamera();
+        const btn = document.getElementById('toggle-ai');
+        if (!ok) {
+          /* Camera denied — turn the toggle back off */
+          settings.ai = false;
+          if (btn) btn.classList.remove('active');
+          applySettings();
+        } else {
+          const vid = document.getElementById('camera-video');
+          if (vid) MotionDetector.attachVideo(vid);
+        }
+      }
+    });
     bindToggle('toggle-camera-preview', 'cameraPreview', null);
 
     /* Sensitivity slider */
@@ -800,22 +815,6 @@ const GameState = (() => {
       });
     }
 
-    /* Camera permission button */
-    const cameraBtn = document.getElementById('btn-camera-permission');
-    if (cameraBtn) {
-      cameraBtn.addEventListener('click', async () => {
-        AudioManager.resume();
-        const ok = await MotionDetector.requestCamera();
-        if (ok) {
-          cameraBtn.textContent = '✅ מצלמה מחוברת';
-          cameraBtn.disabled = true;
-          const vid = document.getElementById('camera-video');
-          if (vid) MotionDetector.attachVideo(vid);
-        } else {
-          cameraBtn.textContent = '❌ לא ניתן לגשת למצלמה';
-        }
-      });
-    }
 
     /* Start */
     document.getElementById('btn-start').addEventListener('click', () => {
