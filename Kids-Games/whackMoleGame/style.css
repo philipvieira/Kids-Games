@@ -221,9 +221,9 @@ html, body {
 .mole-layer {
   position: absolute;
   /* centred over the dark opening of the hole image */
-  left: 20%; right: 20%;
-  top: 15%;             /* start from top of the dark opening */
-  bottom: 20%;          /* end before the bottom leaves */
+  left: 22%; right: 22%;
+  top: 10%;
+  bottom: 35%;          /* raise it up — away from the bottom grass/rim */
   overflow: hidden;
   pointer-events: none;
   z-index: 4;
