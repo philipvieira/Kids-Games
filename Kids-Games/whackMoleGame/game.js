@@ -29,6 +29,7 @@ const TYPE_KEYS    = ['normal', 'golden', 'bomb', 'fast', 'triple'];
 const DIFF_CFG = {
   easy: {
     gameDuration:  55,
+    startDelay:    3000,   // ms before first mole pops (3 seconds)
     baseInterval:  1500,   // ms between spawn attempts at t=0
     minInterval:   700,    // fastest it can get
     baseVisTime:   2400,   // ms mole visible (normal, at t=0)
@@ -37,6 +38,7 @@ const DIFF_CFG = {
   },
   normal: {
     gameDuration:  45,
+    startDelay:    1500,   // ms before first mole pops (1.5 seconds)
     baseInterval:  1200,
     minInterval:   500,
     baseVisTime:   1800,
@@ -45,6 +47,7 @@ const DIFF_CFG = {
   },
   hard: {
     gameDuration:  40,
+    startDelay:    0,      // moles pop immediately
     baseInterval:  900,
     minInterval:   350,
     baseVisTime:   1100,
@@ -239,8 +242,9 @@ function currentVisTime(type) {
 // 9. MOLE SPAWNER
 // ════════════════════════════════════════════════════════════
 
-var spawnTimer     = null;
-var countdownTimer = null;
+var spawnTimer      = null;
+var countdownTimer  = null;
+var startDelayTimer = null;
 
 function countActive() {
   return GS.holes.filter(function(h) { return h.active; }).length;
@@ -518,7 +522,17 @@ function startGame() {
   showScreen('game');
   musicPlay();
   startCountdown();
-  restartSpawnLoop();
+
+  // Delay first spawn based on difficulty
+  var delay = cfg.startDelay || 0;
+  if (delay > 0) {
+    startDelayTimer = setTimeout(function() {
+      startDelayTimer = null;
+      if (GS.running && !GS.paused) restartSpawnLoop();
+    }, delay);
+  } else {
+    restartSpawnLoop();
+  }
 }
 
 function pauseGame() {
@@ -533,6 +547,8 @@ function resumeGame() {
   GS.paused = false;
   musicPlay();
   el.pauseOv.style.display = 'none';
+  // Only restart spawn loop if the start-delay has already elapsed
+  if (!startDelayTimer) restartSpawnLoop();
 }
 
 function restartGame() {
@@ -582,8 +598,10 @@ function goToMenu() {
 function stopTimers() {
   clearInterval(countdownTimer);
   clearInterval(spawnTimer);
-  countdownTimer = null;
-  spawnTimer     = null;
+  clearTimeout(startDelayTimer);
+  countdownTimer  = null;
+  spawnTimer      = null;
+  startDelayTimer = null;
 }
 
 // ════════════════════════════════════════════════════════════
