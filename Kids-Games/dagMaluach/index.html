@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>דג מלוח</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════
+       SCREEN: IDLE / MAIN MENU
+  ═══════════════════════════════════════ -->
+  <div id="screen-idle" class="screen active">
+    <div class="idle-content">
+      <div class="fish-emoji">🐟</div>
+      <h1 class="game-title">דג מלוח</h1>
+      <p class="game-subtitle">משחק תנועה לילדים</p>
+
+      <button id="btn-start" class="btn btn-primary btn-huge pulse">התחל</button>
+
+      <div class="settings-panel">
+        <h3 class="settings-title">הגדרות</h3>
+        <div class="settings-grid">
+
+          <div class="setting-row">
+            <span class="setting-label">מוזיקה</span>
+            <button class="toggle-btn active" id="toggle-music" data-key="music">
+              <span class="toggle-on">הפעל</span>
+              <span class="toggle-off">כבה</span>
+            </button>
+          </div>
+
+          <div class="setting-row">
+            <span class="setting-label">צלילים</span>
+            <button class="toggle-btn active" id="toggle-sound" data-key="sound">
+              <span class="toggle-on">הפעל</span>
+              <span class="toggle-off">כבה</span>
+            </button>
+          </div>
+
+          <div class="setting-row">
+            <span class="setting-label">קול</span>
+            <button class="toggle-btn active" id="toggle-voice" data-key="voice">
+              <span class="toggle-on">הפעל</span>
+              <span class="toggle-off">כבה</span>
+            </button>
+          </div>
+
+          <div class="setting-row">
+            <span class="setting-label">מצב שופט חכם</span>
+            <button class="toggle-btn" id="toggle-ai" data-key="ai">
+              <span class="toggle-on">הפעל</span>
+              <span class="toggle-off">כבה</span>
+            </button>
+          </div>
+
+        </div>
+
+        <!-- AI Settings (shown when AI is ON) -->
+        <div id="ai-settings" class="ai-settings hidden">
+          <div class="setting-row">
+            <span class="setting-label">רגישות תנועה</span>
+            <div class="slider-wrap">
+              <input type="range" id="sensitivity-slider" min="1" max="10" value="5" />
+              <span id="sensitivity-value">5</span>
+            </div>
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">מצלמה</span>
+            <button class="toggle-btn active" id="toggle-camera-preview" data-key="cameraPreview">
+              <span class="toggle-on">הצג</span>
+              <span class="toggle-off">הסתר</span>
+            </button>
+          </div>
+          <button id="btn-camera-permission" class="btn btn-secondary">
+            🎥 בקש הרשאת מצלמה
+          </button>
+        </div>
+
+      </div>
+
+      <button id="btn-fullscreen" class="btn btn-outline">⛶ מסך מלא</button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       SCREEN: MUSIC PHASE (move!)
+  ═══════════════════════════════════════ -->
+  <div id="screen-music" class="screen">
+    <div class="music-content">
+      <div class="phase-fish">🐟</div>
+      <p class="phase-hint">זזים!</p>
+      <div class="music-bars">
+        <span></span><span></span><span></span><span></span><span></span>
+      </div>
+      <!-- Player touches the screen to win during movement phase -->
+      <button id="btn-reached" class="btn btn-reached pulse-soft">
+        🏆 הגעתי!
+      </button>
+      <!-- Camera preview (if enabled) -->
+      <div id="camera-preview-music" class="camera-preview hidden">
+        <video id="camera-video" autoplay muted playsinline></video>
+        <canvas id="motion-canvas" class="hidden"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       SCREEN: FREEZE PHASE
+  ═══════════════════════════════════════ -->
+  <div id="screen-freeze" class="screen">
+    <div class="freeze-content">
+      <div class="freeze-label">קפא!</div>
+      <div class="freeze-hint">אל תזוזו!</div>
+      <div id="countdown-display" class="countdown">5</div>
+
+      <!-- Camera preview during freeze -->
+      <div id="camera-preview-freeze" class="camera-preview hidden">
+        <video id="camera-video-freeze" autoplay muted playsinline></video>
+        <div id="motion-indicator" class="motion-indicator"></div>
+      </div>
+
+      <!-- Manual referee: tap if you spot someone moving (no AI mode) -->
+      <button id="btn-caught" class="btn btn-caught pulse-soft">
+        🚨 תפסתי!
+      </button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       SCREEN: WINNER (reached the screen)
+  ═══════════════════════════════════════ -->
+  <div id="screen-winner" class="screen">
+    <div class="winner-content">
+      <div class="winner-emoji">🏆</div>
+      <div class="winner-title">ניצחת!</div>
+      <div class="winner-subtitle">הגעת לשלט!</div>
+      <button id="btn-play-again-winner" class="btn btn-primary btn-huge pulse">
+        שחק שוב
+      </button>
+      <button id="btn-main-menu-winner" class="btn btn-outline">
+        תפריט ראשי
+      </button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       SCREEN: CAUGHT (moved during freeze)
+  ═══════════════════════════════════════ -->
+  <div id="screen-caught" class="screen">
+    <div class="caught-content">
+      <div class="caught-emoji">🚨</div>
+      <div class="caught-title">נתפס!</div>
+      <div id="caught-reason" class="caught-reason"></div>
+      <button id="btn-play-again-caught" class="btn btn-primary btn-huge pulse">
+        שחק שוב
+      </button>
+      <button id="btn-main-menu-caught" class="btn btn-outline">
+        תפריט ראשי
+      </button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       OVERLAY: Motion Detected Flash
+  ═══════════════════════════════════════ -->
+  <div id="motion-flash" class="motion-flash hidden">
+    זוהתה תזוזה!
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>

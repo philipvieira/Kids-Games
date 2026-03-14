@@ -109,6 +109,16 @@ const GAMES = [
     thumb: '',
   },
 
+  {
+    id:    'dagMaluach',
+    title: 'דג מלוח',
+    desc:  'משחק תנועה לילדים — מוזיקה, קפא, ושופט חכם עם מצלמה!',
+    icon:  '🐟',
+    color: 'linear-gradient(135deg, #0d1b4b 0%, #1a3a8f 50%, #48cae4 100%)',
+    path:  '../dagMaluach/index.html',
+    thumb: '',
+  },
+
   // ── Add more games below ─────────────────────────────
   // To add a screenshot: set thumb: '../myGame/assets/thumb.png'
   // {
