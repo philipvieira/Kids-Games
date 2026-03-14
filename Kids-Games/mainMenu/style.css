@@ -16,6 +16,13 @@
   animation: pulse 1.6s ease-in-out infinite;
 }
 .splash-icon { font-size: 5rem; margin-bottom: 16px; }
+.splash-logo {
+  width: clamp(260px, 75vw, 560px);
+  height: auto;
+  display: block;
+  margin: 0 auto 20px;
+  filter: drop-shadow(0 4px 24px rgba(0,0,0,0.6));
+}
 .splash-content h2 {
   font-size: 2.8rem; font-weight: 900;
   color: #ffe000;
@@ -38,15 +45,21 @@
 
 body {
   font-family: 'Segoe UI', 'Arial', sans-serif;
-  background: url('assets/bg.png') center center / cover no-repeat fixed;
+  background: none;
   color: #fff;
   min-height: 100vh;
   direction: rtl;
 }
 
-/* ─── Stars background ──────────────────────────────── */
+/* ─── Fixed background (works on desktop AND iOS Safari) ── */
+/* background-attachment:fixed is broken on iOS; a position:fixed
+   pseudo-element achieves the same parallax-free effect cross-browser */
 body::before {
-  content: none;
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: url('assets/bg.png') center center / cover no-repeat;
 }
 
 /* ─── Page wrapper ──────────────────────────────────── */
@@ -62,6 +75,17 @@ body::before {
 .site-header {
   text-align: center;
   margin-bottom: 50px;
+}
+
+.header-logo {
+  /* Match the visual footprint of the old "🎮 משחקי ילדים 🎮" h1 + emoji icon.
+     The image is 1024×314 (3.26:1). Old h1 was clamp(2.2rem,6vw,4rem) + 5rem icon above.
+     Width of ~80vw on mobile, capped at 600px on desktop feels equivalent. */
+  width: clamp(280px, 80vw, 600px);
+  height: auto;
+  display: block;
+  margin: 0 auto;
+  filter: drop-shadow(0 4px 20px rgba(0,0,0,0.6));
 }
 
 .site-header h1 {
