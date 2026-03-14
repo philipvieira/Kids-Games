@@ -16,7 +16,7 @@ const GAMES = [
     icon:  '🏎️',
     color: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
     path:  '../raceGame/index.html',
-    thumb: '',
+    thumb: '../raceGame/assets/thumb.png',
   },
 
   {

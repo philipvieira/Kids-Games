@@ -135,10 +135,11 @@ body::before {
 }
 
 .card-thumb img.card-screenshot {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  width: 85%;
+  height: 85%;
+  object-fit: contain;
   display: block;
+  filter: drop-shadow(0 4px 10px rgba(0,0,0,0.4));
 }
 
 .card-icon {
