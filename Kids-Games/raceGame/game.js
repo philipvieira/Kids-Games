@@ -95,7 +95,7 @@ TRAFFIC_VARIANTS.forEach(v => {
   }
 });
 
-// Powerup images
+// Powerup images — store with natural aspect ratio for correct drawing
 const POWERUP_IMAGES = {
   speed     : (() => { const i = new Image(); i.src = 'assets/powerup-speed.png';  return i; })(),
   invincible: (() => { const i = new Image(); i.src = 'assets/powerup-shield.png'; return i; })(),
@@ -1378,7 +1378,7 @@ function drawPowerups() {
     ctx.translate(p.x, p.y);
     ctx.rotate(p.rot);
 
-    // Glow circle behind the icon — same colours as before
+    // Glow circle behind the icon
     const grd = ctx.createRadialGradient(0, 0, 0, 0, 0, p.w);
     if (p.type === 'speed') {
       grd.addColorStop(0, 'rgba(100,180,255,0.9)');
@@ -1393,12 +1393,16 @@ function drawPowerups() {
     ctx.fillStyle = grd;
     ctx.beginPath(); ctx.arc(0, 0, p.w, 0, Math.PI * 2); ctx.fill();
 
-    // Draw image centred, same bounding size as before (p.w * 2 square)
     const img = POWERUP_IMAGES[p.type];
     if (img && img.complete && img.naturalWidth > 0) {
-      ctx.drawImage(img, -p.w, -p.w, p.w * 2, p.w * 2);
+      // Preserve aspect ratio — fit inside p.w*2 square (object-fit: contain)
+      const boxSize = p.w * 2;
+      const ratio   = img.naturalWidth / img.naturalHeight;
+      let dw, dh;
+      if (ratio > 1) { dw = boxSize; dh = boxSize / ratio; }
+      else            { dh = boxSize; dw = boxSize * ratio; }
+      ctx.drawImage(img, -dw / 2, -dh / 2, dw, dh);
     } else {
-      // Fallback emoji while image loads
       ctx.font = `${Math.round(p.w * 1.5)}px sans-serif`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       const fallback = p.type === 'speed' ? '⚡' : p.type === 'invincible' ? '🛡️' : '×2';
@@ -1532,15 +1536,25 @@ function renderHighScores() {
 // ═══════════════════════════════════════════════════════════════
 //  MUSIC
 // ═══════════════════════════════════════════════════════════════
-const _bgAudio = new Audio('assets/8bit race.mp4');
-_bgAudio.loop   = true;
-_bgAudio.volume = 0.55;
+// Lazily created on first user gesture — mobile browsers (iOS Safari,
+// Android Chrome, Samsung Internet) block Audio() play() unless it
+// originates directly from a user interaction.
+let _bgAudio = null;
+
+function _ensureAudio() {
+  if (_bgAudio) return;
+  _bgAudio = new Audio('assets/8bit race.mp4');
+  _bgAudio.loop   = true;
+  _bgAudio.volume = 0.55;
+}
 
 function startMusic() {
+  _ensureAudio();
   _bgAudio.play().catch(() => {});
 }
 
 function stopMusic() {
+  if (!_bgAudio) return;
   _bgAudio.pause();
   _bgAudio.currentTime = 0;
 }
