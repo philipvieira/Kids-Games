@@ -266,39 +266,57 @@ const AudioManager = (() => {
 const SpeechManager = (() => {
   let voiceEnabled = true;
   let hebrewVoice  = null;
+  let voicesReady  = false;
   let warmedUp     = false;
+
+  const IS_ANDROID = /android/i.test(navigator.userAgent);
 
   function findHebrewVoice() {
     const voices = speechSynthesis.getVoices();
-    return voices.find(v => v.lang === 'he-IL' || v.lang === 'he')
+    /* Prefer exact he-IL, then any Hebrew, then any voice as fallback */
+    return voices.find(v => v.lang === 'he-IL')
+        || voices.find(v => v.lang === 'he')
         || voices.find(v => v.lang.startsWith('he'))
+        || voices[0]   /* absolute fallback so Android at least says something */
         || null;
   }
 
   function init() {
     if (!('speechSynthesis' in window)) return;
-    const set = () => { hebrewVoice = findHebrewVoice(); };
+
+    function loadVoices() {
+      hebrewVoice = findHebrewVoice();
+      voicesReady = !!hebrewVoice;
+    }
+
+    /* Android Chrome loads voices asynchronously — poll until available */
     if (speechSynthesis.getVoices().length > 0) {
-      set();
+      loadVoices();
     } else {
-      speechSynthesis.addEventListener('voiceschanged', set, { once: true });
+      speechSynthesis.addEventListener('voiceschanged', loadVoices, { once: true });
+      /* Extra safety: retry after 1 s on Android where event sometimes fires late */
+      if (IS_ANDROID) {
+        setTimeout(() => { if (!voicesReady) loadVoices(); }, 1000);
+        setTimeout(() => { if (!voicesReady) loadVoices(); }, 2500);
+      }
     }
   }
 
   /*
-   * iOS Safari blocks speechSynthesis.speak() unless it is called
-   * synchronously inside a user-gesture event handler.
-   * We "warm up" by speaking a silent zero-length utterance the moment
-   * the user taps a button, which unlocks the audio session for
-   * subsequent programmatic calls in the same page lifetime.
+   * Warm-up: speak a near-silent short utterance inside a user-gesture
+   * handler to unlock the TTS engine on iOS and Android.
+   * On Android Chrome an empty string is ignored — use a space character.
    */
   function warmUp() {
     if (warmedUp || !('speechSynthesis' in window)) return;
     warmedUp = true;
     try {
-      const silent = new SpeechSynthesisUtterance('');
-      silent.volume = 0;
-      silent.rate   = 10;   /* as short as possible */
+      speechSynthesis.cancel();
+      const silent = new SpeechSynthesisUtterance('\u00A0'); /* non-breaking space */
+      silent.lang   = 'he-IL';
+      silent.volume = 0.01;   /* near-silent but non-zero — Android ignores 0 */
+      silent.rate   = 10;
+      if (hebrewVoice) silent.voice = hebrewVoice;
       speechSynthesis.speak(silent);
     } catch (_) {}
   }
@@ -306,15 +324,49 @@ const SpeechManager = (() => {
   function say(text) {
     if (!voiceEnabled) return;
     if (!('speechSynthesis' in window)) return;
-    speechSynthesis.cancel();
 
-    const utt   = new SpeechSynthesisUtterance(text);
-    utt.lang    = 'he-IL';
-    if (hebrewVoice) utt.voice = hebrewVoice;
-    utt.rate    = 0.85;
-    utt.pitch   = 1.15;
-    utt.volume  = 1.0;
-    speechSynthesis.speak(utt);
+    /*
+     * Android Chrome bug: calling cancel() immediately before speak()
+     * can leave the engine in a broken state. Use a short timeout to
+     * let cancel() settle before queuing the new utterance.
+     */
+    speechSynthesis.cancel();
+    const delay = IS_ANDROID ? 80 : 0;
+
+    setTimeout(() => {
+      /* Re-fetch voice in case it loaded after warmUp */
+      if (!hebrewVoice) hebrewVoice = findHebrewVoice();
+
+      const utt  = new SpeechSynthesisUtterance(text);
+      utt.lang   = 'he-IL';
+      if (hebrewVoice) utt.voice = hebrewVoice;
+      utt.rate   = 0.85;
+      utt.pitch  = 1.15;
+      utt.volume = 1.0;
+
+      /*
+       * Android Chrome TTS sometimes stalls silently.
+       * If nothing started within 2 s, cancel and retry once.
+       */
+      let spoken = false;
+      utt.onstart = () => { spoken = true; };
+      if (IS_ANDROID) {
+        setTimeout(() => {
+          if (!spoken) {
+            speechSynthesis.cancel();
+            const retry = new SpeechSynthesisUtterance(text);
+            retry.lang   = 'he-IL';
+            if (hebrewVoice) retry.voice = hebrewVoice;
+            retry.rate   = 0.85;
+            retry.pitch  = 1.15;
+            retry.volume = 1.0;
+            speechSynthesis.speak(retry);
+          }
+        }, 2000);
+      }
+
+      speechSynthesis.speak(utt);
+    }, delay);
   }
 
   function setVoiceEnabled(val) { voiceEnabled = val; }
@@ -418,9 +470,39 @@ const MotionDetector = (() => {
 
   async function requestCamera() {
     /*
-     * iOS Safari is strict about getUserMedia constraints.
-     * Try progressively simpler constraints so mobile browsers accept them.
+     * Android Chrome often ignores or mishandles facingMode constraints,
+     * returning a black stream. The most reliable approach is to enumerate
+     * devices and pick the front-facing camera by deviceId directly.
+     * We fall back progressively if that fails.
      */
+    try {
+      /* Step 1: enumerate — requires a prior permission or a bare request first */
+      let devices = await navigator.mediaDevices.enumerateDevices();
+      let videoDevices = devices.filter(d => d.kind === 'videoinput');
+
+      /* If deviceId labels are empty we need a bare request to unlock labels */
+      if (videoDevices.length > 0 && !videoDevices[0].label) {
+        const tmp = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        tmp.getTracks().forEach(t => t.stop());
+        devices = await navigator.mediaDevices.enumerateDevices();
+        videoDevices = devices.filter(d => d.kind === 'videoinput');
+      }
+
+      /* Prefer a device whose label contains 'front' or index 0 (usually front) */
+      const front = videoDevices.find(d =>
+        /front|user|selfie|facetime/i.test(d.label)
+      ) || videoDevices[0];
+
+      if (front) {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { deviceId: { exact: front.deviceId } },
+          audio: false,
+        });
+        return true;
+      }
+    } catch (_) {}
+
+    /* Fallback chain */
     const attempts = [
       { video: { facingMode: 'user' }, audio: false },
       { video: { facingMode: { ideal: 'user' } }, audio: false },
@@ -439,22 +521,23 @@ const MotionDetector = (() => {
     video = videoEl;
     if (stream && video) {
       video.srcObject = stream;
-      /* Ensure playback starts on mobile (required after srcObject assignment) */
-      video.play().catch(() => {});
+      const p = video.play();
+      if (p && typeof p.catch === 'function') p.catch(() => {});
     }
   }
 
-  /* Attach stream to all video elements that are currently in the DOM */
+  /* Attach stream to all video elements currently in the DOM */
   function attachAllVideos() {
     document.querySelectorAll('video').forEach(v => {
-      if (stream) {
+      if (!stream) return;
+      if (v.srcObject !== stream) {
         v.srcObject = stream;
-        v.play().catch(() => {});
       }
+      const p = v.play();
+      if (p && typeof p.catch === 'function') p.catch(() => {});
     });
-    /* Also keep the internal reference pointing to a live element */
-    const active = document.querySelector('.screen.active video');
-    if (active) video = active;
+    const activeVid = document.querySelector('.screen.active video');
+    if (activeVid) video = activeVid;
   }
 
   function getCanvas() {
@@ -917,4 +1000,10 @@ const GameState = (() => {
 ═══════════════════════════════════ */
 document.addEventListener('DOMContentLoaded', () => {
   GameState.init();
+
+  /* Android Chrome can re-suspend AudioContext when the tab loses focus.
+     Resume it on any user interaction throughout the session. */
+  const resumeAudio = () => AudioManager.resume();
+  document.addEventListener('touchstart', resumeAudio, { passive: true });
+  document.addEventListener('click',      resumeAudio, { passive: true });
 });
