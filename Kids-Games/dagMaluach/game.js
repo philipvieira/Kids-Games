@@ -962,7 +962,7 @@ const GameState = (() => {
     document.getElementById('btn-play-again-winner').addEventListener('click', () => {
       AudioManager.resume();
       SpeechManager.warmUp();
-      toMusic();
+      toPregame();
     });
     document.getElementById('btn-menu-from-winner').addEventListener('click', () => {
       toIdle();
@@ -972,7 +972,7 @@ const GameState = (() => {
     document.getElementById('btn-play-again-caught').addEventListener('click', () => {
       AudioManager.resume();
       SpeechManager.warmUp();
-      toMusic();
+      toPregame();
     });
     document.getElementById('btn-menu-from-caught').addEventListener('click', () => {
       toIdle();
