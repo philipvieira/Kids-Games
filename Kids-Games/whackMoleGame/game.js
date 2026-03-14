@@ -473,8 +473,8 @@ function startCountdown() {
     if (GS.timeLeft <= 5)  el.hudTime.classList.add('urgent');
     if (GS.timeLeft <= 0)  endGame();
 
-    // Restart spawn loop with updated (faster) interval
-    restartSpawnLoop();
+    // Only update spawn speed once the start delay has finished
+    if (!startDelayTimer) restartSpawnLoop();
   }, 1000);
 }
 
