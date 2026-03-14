@@ -745,26 +745,35 @@ const GameState = (() => {
     CountdownManager.stop();
     MotionDetector.stopDetecting();
     AudioManager.stopMusic();
+    clearTimeout(musicPhaseTimer);   /* cancel any lingering timer from prior state */
 
     UI.showScreen('pregame');
 
-    /* Animate 3-2-1 using the pregame-count element directly */
     let count = 3;
+
     function tick() {
+      /* Guard: if state changed while timer was pending, abort */
+      if (state !== STATES.PREGAME) return;
+
       const el = document.getElementById('pregame-count');
       if (el) {
-        /* Re-trigger pop animation */
         const clone = el.cloneNode(true);
         clone.textContent = count;
         el.parentNode.replaceChild(clone, el);
       }
-      if (count <= 0) {
-        toMusic();
+
+      if (count === 0) {
+        /* Small extra delay so "1" is visible before music starts */
+        musicPhaseTimer = setTimeout(() => {
+          if (state === STATES.PREGAME) toMusic();
+        }, 900);
         return;
       }
+
       count--;
       musicPhaseTimer = setTimeout(tick, 1000);
     }
+
     tick();
   }
 

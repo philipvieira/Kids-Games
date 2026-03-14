@@ -10,6 +10,11 @@
   padding: 0;
 }
 
+html, body {
+  /* Prevent double-tap zoom on iOS 10+ and Android Chrome */
+  touch-action: manipulation;
+}
+
 :root {
   --clr-bg-idle:    #0d1b4b;
   --clr-bg-music:   #0a3d0a;
@@ -87,6 +92,7 @@ html, body {
   text-decoration: none;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
+  touch-action: manipulation;   /* no double-tap zoom on buttons */
 }
 
 .btn:active {
