@@ -618,11 +618,10 @@ function spawnBurst(x, y, color) {
 // ═══════════════════════════════════════════════════════════════
 function draw() {
   ctx.clearRect(0, 0, W, H);
-  // Side backgrounds (city left, beach right) — only drawn when road doesn't fill screen
   if (roadLeft > 0) drawCity(0, roadLeft);
   if (roadRight < W) drawBeach(roadRight, W);
   drawRoadSprites();
-  drawRoad();           // lane dash overlay on top of sprite
+  // Lane dashes are baked into road1.png — no overlay needed
   drawFinishLine();
   drawCarShadows();
   drawTrafficCars();
@@ -1021,23 +1020,21 @@ function drawCooler(x, y) {
   ctx.fillRect(x + 9, y + 4, 4, 2);
 }
 
-// ─── Road ─────────────────────────────────────────────────────
-// Lane dashes drawn on top of the road sprite for extra clarity
-function drawRoad() {
-  // Dashed lane markings on top of the sprite
-  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-  ctx.lineWidth = 2;
-  ctx.setLineDash([28, 20]);
-  ctx.lineDashOffset = -(scrollY % 48);
+// ─── Road fallback (while image loads) ───────────────────────
+function drawRoadFallback() {
+  const roadW = roadRight - roadLeft;
+  const grd = ctx.createLinearGradient(roadLeft, 0, roadRight, 0);
+  grd.addColorStop(0, '#252525'); grd.addColorStop(0.5, '#363636'); grd.addColorStop(1, '#252525');
+  ctx.fillStyle = grd;
+  ctx.fillRect(roadLeft, 0, roadW, H);
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 2;
+  ctx.setLineDash([28, 20]); ctx.lineDashOffset = -(scrollY % 48);
   for (let i = 1; i < LANES; i++) {
     const lx = roadLeft + laneW * i;
     ctx.beginPath(); ctx.moveTo(lx, 0); ctx.lineTo(lx, H); ctx.stroke();
   }
-  ctx.setLineDash([]);
-  ctx.lineDashOffset = 0;
+  ctx.setLineDash([]); ctx.lineDashOffset = 0;
 }
-
-// ─── Finish Line ──────────────────────────────────────────────
 function drawFinishLine() {
   // The finish line lives at a fixed world distance (goalDistance).
   // We convert that to a screen Y the same way road markings scroll:
@@ -1131,15 +1128,11 @@ function drawTrafficCars() {
   trafficCars.forEach(t => {
     const img = TRAFFIC_IMAGES[t.img];
     if (img && img.complete && img.naturalWidth > 0) {
-      ctx.save();
-      ctx.translate(t.x, t.y);
-      ctx.rotate(Math.PI); // all traffic images face up; rotate so they face down (toward player)
-      ctx.drawImage(img, -t.w / 2, -t.h / 2, t.w, t.h);
-      ctx.restore();
+      // Images are already top-view facing DOWN (front at bottom) — no rotation needed
+      ctx.drawImage(img, t.x - t.w / 2, t.y - t.h / 2, t.w, t.h);
     } else {
       ctx.save();
       ctx.translate(t.x, t.y);
-      ctx.rotate(Math.PI);
       drawCarShape(ctx, 0, 0, t.w, t.h, '#888', '#555', 'sedan', false, null, 0);
       ctx.restore();
     }
