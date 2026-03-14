@@ -248,6 +248,11 @@ html, body {
 .mole-inner.visible {
   transform: translateY(0%);
 }
+/* Whacked: brief flash, then retractMole removes visible so it slides back down */
+.mole-inner.whacked {
+  transform: translateY(0%) scale(0.75) rotate(15deg) !important;
+  transition: transform 0.08s ease-out !important;
+}
 .mole-img {
   width: 100%;
   height: auto;
@@ -258,8 +263,7 @@ html, body {
   -webkit-user-drag: none;
 }
 .mole-inner.whacked .mole-img {
-  filter: brightness(2) drop-shadow(0 0 10px #fff);
-  transform: scale(0.7) rotate(20deg);
+  filter: brightness(2.5) drop-shadow(0 0 12px #fff);
 }
 
 /* Label layer: floats ABOVE the hole, not clipped */

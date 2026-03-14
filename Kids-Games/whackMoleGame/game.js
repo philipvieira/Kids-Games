@@ -320,10 +320,13 @@ function retractMole(idx, missed) {
   if (!h.active) return;
   clearTimeout(h.timerId);
   h.active = false;
-  h.moleInner.classList.remove('visible', 'whacked');
   if (missed && GS.running && !GS.paused) {
     GS.misses++;
   }
+  // Small delay after whack so flash is visible, then slide back down
+  setTimeout(function() {
+    h.moleInner.classList.remove('visible', 'whacked');
+  }, missed ? 0 : 120);
 }
 
 // ════════════════════════════════════════════════════════════
