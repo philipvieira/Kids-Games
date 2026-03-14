@@ -73,14 +73,31 @@ Object.entries(CAR_TYPES).forEach(([key, def]) => {
   CAR_IMAGES[key] = im;
 });
 
-// Traffic car variety pool
+// Traffic car variety pool — each entry maps to a PNG asset
+// wScale/hScale control collision box size relative to laneW
 const TRAFFIC_VARIANTS = [
-  { shape: 'sedan',  colors: ['#e74c3c','#3498db','#2ecc71','#9b59b6','#1abc9c'] },
-  { shape: 'sports', colors: ['#e67e22','#ff6b9d','#c0392b','#8e44ad'] },
-  { shape: 'suv',    colors: ['#f39c12','#27ae60','#2980b9','#7f8c8d'] },
-  { shape: 'van',    colors: ['#ecf0f1','#bdc3c7','#95a5a6','#7f8c8d'] },
-  { shape: 'truck',  colors: ['#e74c3c','#2c3e50','#16a085','#8e44ad'] },
+  { img: 'assets/traffic-ambulance.png',    wScale: 0.72, hScale: 1.30 },
+  { img: 'assets/traffic-truck.png',        wScale: 0.76, hScale: 1.40 },
+  { img: 'assets/traffic-van.png',          wScale: 0.72, hScale: 1.25 },
+  { img: 'assets/traffic-firetruck.png',    wScale: 0.74, hScale: 1.45 },
+  { img: 'assets/traffic-construction.png', wScale: 0.78, hScale: 1.40 },
+  { img: 'assets/traffic-police.png',       wScale: 0.68, hScale: 1.15 },
+  { img: 'assets/traffic-schoolbus.png',    wScale: 0.76, hScale: 1.35 },
+  { img: 'assets/traffic-taxi.png',         wScale: 0.70, hScale: 1.20 },
+  { img: 'assets/traffic-trashcar.png',     wScale: 0.76, hScale: 1.40 },
+  { img: 'assets/traffic-tractor.png',      wScale: 0.72, hScale: 1.30 },
 ];
+
+// Preload all traffic images
+const TRAFFIC_IMAGES = {};
+TRAFFIC_VARIANTS.forEach(v => {
+  const key = v.img;
+  if (!TRAFFIC_IMAGES[key]) {
+    const im = new Image();
+    im.src = key;
+    TRAFFIC_IMAGES[key] = im;
+  }
+});
 
 // ─── Mobile detection (used for speed compensation) ───────────
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
@@ -251,30 +268,23 @@ function updateLivesDisplay() {
 function spawnTraffic(initial, initialIdx = 0, initialTotal = 1) {
   const cfg     = getLevelConfig(currentLevel);
   const variant = TRAFFIC_VARIANTS[randInt(0, TRAFFIC_VARIANTS.length - 1)];
-  const color   = variant.colors[randInt(0, variant.colors.length - 1)];
-  const shape   = variant.shape;
-  const wScale  = shape === 'truck' ? 0.74 : shape === 'suv' ? 0.76 : shape === 'van' ? 0.72 : 0.62;
-  const hScale  = shape === 'truck' ? 1.40 : shape === 'suv' ? 1.30 : shape === 'van' ? 1.35 : 1.08;
+  const wScale  = variant.wScale;
+  const hScale  = variant.hScale;
   const carH    = laneW * hScale;
 
   // Minimum safe gap between cars: car height + generous buffer
   const MIN_GAP = carH * 2.0;
 
-  // For initial spawn: spread cars evenly across a long stretch above the screen
-  // so they don't all cluster at the same Y
   let spawnY;
   if (initial) {
-    // Divide the spawn zone (-H*0.3 to -H*2.8) into equal slots
     const zoneStart = -(H * 0.3 + carH);
     const zoneEnd   = -(H * 2.8);
     const slot      = (zoneEnd - zoneStart) / Math.max(initialTotal, 1);
     spawnY = zoneStart + slot * initialIdx + rand(0, Math.abs(slot) * 0.5);
   } else {
-    // Respawn: just above the top of the screen
     spawnY = -(carH + rand(40, 120));
   }
 
-  // Find a lane with no overlap at this Y position
   const laneOrder = shuffleArray([...Array(LANES).keys()]);
   let placed = false;
 
@@ -288,20 +298,18 @@ function spawnTraffic(initial, initialIdx = 0, initialTotal = 1) {
     }
     if (clear) {
       trafficCars.push({
-        x        : cx,
-        y        : spawnY,
-        w        : laneW * wScale,
-        h        : carH,
-        speed    : rand(1.2, 2.5) * cfg.speedMult,
-        color,
-        shape,
+        x    : cx,
+        y    : spawnY,
+        w    : laneW * wScale,
+        h    : carH,
+        speed: rand(1.2, 2.5) * cfg.speedMult,
+        img  : variant.img,
       });
       placed = true;
       break;
     }
   }
 
-  // Fallback: nudge Y far enough above anything else and force-place
   if (!placed) {
     const lane = laneOrder[0];
     const cx   = laneCenter(lane);
@@ -310,13 +318,12 @@ function spawnTraffic(initial, initialIdx = 0, initialTotal = 1) {
       if (Math.abs(t.x - cx) < laneW * 0.85 && t.y < topY) topY = t.y;
     }
     trafficCars.push({
-      x        : cx,
-      y        : topY - MIN_GAP,
-      w        : laneW * wScale,
-      h        : carH,
-      speed    : rand(1.2, 2.5) * cfg.speedMult,
-      color,
-      shape,
+      x    : cx,
+      y    : topY - MIN_GAP,
+      w    : laneW * wScale,
+      h    : carH,
+      speed: rand(1.2, 2.5) * cfg.speedMult,
+      img  : variant.img,
     });
   }
 }
@@ -1135,11 +1142,22 @@ function shadeColor(col, amt) {
 
 function drawTrafficCars() {
   trafficCars.forEach(t => {
-    ctx.save();
-    ctx.translate(t.x, t.y);
-    ctx.rotate(Math.PI); // traffic drives downward — front faces down = rotate 180°
-    drawCarShape(ctx, 0, 0, t.w, t.h, t.color, shadeColor(t.color, -50), t.shape, false, null, 0);
-    ctx.restore();
+    const img = TRAFFIC_IMAGES[t.img];
+    if (img && img.complete && img.naturalWidth > 0) {
+      ctx.save();
+      // Rotate 180° around the car centre so the vehicle faces downward (driving toward player)
+      ctx.translate(t.x, t.y);
+      ctx.rotate(Math.PI);
+      ctx.drawImage(img, -t.w / 2, -t.h / 2, t.w, t.h);
+      ctx.restore();
+    } else {
+      // Fallback while image loads
+      ctx.save();
+      ctx.translate(t.x, t.y);
+      ctx.rotate(Math.PI);
+      drawCarShape(ctx, 0, 0, t.w, t.h, '#888', '#555', 'sedan', false, null, 0);
+      ctx.restore();
+    }
   });
 }
 function drawPlayerCar() {
