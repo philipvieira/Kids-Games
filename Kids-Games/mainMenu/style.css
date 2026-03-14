@@ -43,25 +43,32 @@
 /* ─── Reset & Base ──────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-/* Fixed background on <html> — reliable on iOS Safari, Android Chrome,
-   Samsung Internet. background-attachment:fixed on <html> is the one
-   element all mobile browsers honour correctly. */
-html {
+/* iOS Safari ignores background-attachment:fixed on any element.
+   The fix: a real <div id="bg"> in the DOM, position:fixed, z-index:-1.
+   This works on iOS Safari, Android Chrome, Samsung Internet, and desktop. */
+html, body {
   min-height: 100%;
-  background: url('assets/bg.png') center center / cover no-repeat fixed;
+  background: transparent;
 }
 
 body {
   font-family: 'Segoe UI', 'Arial', sans-serif;
-  background: transparent;
   color: #fff;
   min-height: 100vh;
   direction: rtl;
 }
 
-/* Remove the pseudo-element approach (no longer needed) */
-body::before {
-  content: none;
+body::before { content: none; }
+
+/* ─── Fixed background div (iOS Safari safe) ────────── */
+#bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: url('assets/bg.png') center center / cover no-repeat;
+  /* No background-attachment needed — fixed positioning does the job */
+  -webkit-transform: translateZ(0); /* force GPU layer on iOS */
+  transform: translateZ(0);
 }
 
 /* ─── Page wrapper ──────────────────────────────────── */
