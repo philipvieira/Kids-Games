@@ -25,7 +25,7 @@ const SettingsStorage = (() => {
     sound: true,
     voice: true,
     ai: false,
-    sensitivity: 5,
+    sensitivity: 2,
   };
 
   function load() {
@@ -265,7 +265,8 @@ const AudioManager = (() => {
 ═══════════════════════════════════ */
 const SpeechManager = (() => {
   let voiceEnabled = true;
-  let hebrewVoice = null;
+  let hebrewVoice  = null;
+  let warmedUp     = false;
 
   function findHebrewVoice() {
     const voices = speechSynthesis.getVoices();
@@ -284,31 +285,42 @@ const SpeechManager = (() => {
     }
   }
 
+  /*
+   * iOS Safari blocks speechSynthesis.speak() unless it is called
+   * synchronously inside a user-gesture event handler.
+   * We "warm up" by speaking a silent zero-length utterance the moment
+   * the user taps a button, which unlocks the audio session for
+   * subsequent programmatic calls in the same page lifetime.
+   */
+  function warmUp() {
+    if (warmedUp || !('speechSynthesis' in window)) return;
+    warmedUp = true;
+    try {
+      const silent = new SpeechSynthesisUtterance('');
+      silent.volume = 0;
+      silent.rate   = 10;   /* as short as possible */
+      speechSynthesis.speak(silent);
+    } catch (_) {}
+  }
+
   function say(text) {
     if (!voiceEnabled) return;
     if (!('speechSynthesis' in window)) return;
     speechSynthesis.cancel();
 
-    const utt = new SpeechSynthesisUtterance(text);
-    utt.lang   = 'he-IL';
+    const utt   = new SpeechSynthesisUtterance(text);
+    utt.lang    = 'he-IL';
     if (hebrewVoice) utt.voice = hebrewVoice;
-    utt.rate   = 0.85;
-    utt.pitch  = 1.15;
-    utt.volume = 1.0;
-
-    /*
-     * iOS Safari requires speechSynthesis to be triggered directly inside a
-     * user-gesture handler OR immediately after one. We attempt to speak once.
-     * The double-speak that was added for loudness caused double-playback on
-     * desktop. Removed — single utterance is correct and loud enough at 1.0.
-     */
+    utt.rate    = 0.85;
+    utt.pitch   = 1.15;
+    utt.volume  = 1.0;
     speechSynthesis.speak(utt);
   }
 
   function setVoiceEnabled(val) { voiceEnabled = val; }
 
   init();
-  return { say, setVoiceEnabled };
+  return { say, warmUp, setVoiceEnabled };
 })();
 
 
@@ -828,6 +840,7 @@ const GameState = (() => {
     document.getElementById('btn-start').addEventListener('click', () => {
       AudioManager.ensureContext();
       AudioManager.resume();
+      SpeechManager.warmUp();
       toMusic();
     });
 
@@ -839,6 +852,7 @@ const GameState = (() => {
     /* Winner screen buttons */
     document.getElementById('btn-play-again-winner').addEventListener('click', () => {
       AudioManager.resume();
+      SpeechManager.warmUp();
       toMusic();
     });
     document.getElementById('btn-menu-from-winner').addEventListener('click', () => {
@@ -848,6 +862,7 @@ const GameState = (() => {
     /* Caught screen buttons */
     document.getElementById('btn-play-again-caught').addEventListener('click', () => {
       AudioManager.resume();
+      SpeechManager.warmUp();
       toMusic();
     });
     document.getElementById('btn-menu-from-caught').addEventListener('click', () => {
