@@ -15,12 +15,23 @@ const MAX_LIVES   = 3;
 // Mole types
 // triple: hit it and 3 normal moles instantly pop up in random empty holes
 const MOLE_TYPES = {
-  normal: { emoji: '🐹', points: 10,  label: 'יפה!',    cls: '',       visRatio: 1.0  },
-  golden: { emoji: '⭐', points: 30,  label: '!מצוין',  cls: 'gold',   visRatio: 1.2  },
-  bomb:   { emoji: '💣', points: -20, label: '!בום',    cls: 'bomb',   visRatio: 1.0  },
-  fast:   { emoji: '⚡', points: 15,  label: 'מהיר!',   cls: '',       visRatio: 0.45 },
-  triple: { emoji: '🎉', points: 20,  label: 'שלושה!', cls: 'triple', visRatio: 0.7  },
+  normal: { img: null,              points: 10,  label: 'יפה!',    cls: '',       visRatio: 1.0  },
+  golden: { img: 'assets/moles/golden.png',      points: 30,  label: '!מצוין',  cls: 'gold',   visRatio: 1.2  },
+  bomb:   { img: 'assets/moles/bomb.png',        points: -20, label: '!בום',    cls: 'bomb',   visRatio: 1.0  },
+  fast:   { img: 'assets/moles/fast.png',        points: 15,  label: 'מהיר!',   cls: '',       visRatio: 0.45 },
+  triple: { img: 'assets/moles/triple.png',      points: 20,  label: 'שלושה!', cls: 'triple', visRatio: 0.7  },
 };
+
+// Normal mole image variants (picked randomly)
+const NORMAL_MOLE_IMGS = [
+  'assets/moles/normal1.png',
+  'assets/moles/normal2.png',
+  'assets/moles/normal3.png',
+  'assets/moles/normal4.png',
+  'assets/moles/normal5.png',
+  'assets/moles/normal6.png',
+  'assets/moles/normal7.png',
+];
 
 // Weights [normal, golden, bomb, fast, triple]
 const TYPE_WEIGHTS = [58, 12, 12, 10, 8];
@@ -180,6 +191,10 @@ function buildGrid() {
     moleLayer.className = 'mole-layer';
     var moleInner = document.createElement('div');
     moleInner.className = 'mole-inner';
+    var moleImg = document.createElement('img');
+    moleImg.className = 'mole-img';
+    moleImg.draggable = false;
+    moleInner.appendChild(moleImg);
     moleLayer.appendChild(moleInner);
     hole.appendChild(moleLayer);
 
@@ -194,6 +209,7 @@ function buildGrid() {
       el:         hole,
       canvas:     canvas,
       moleInner:  moleInner,
+      moleImg:    moleImg,
       labelLayer: labelLayer,
       active:     false,
       type:       null,
@@ -283,7 +299,12 @@ function popMole(idx, type, visTime) {
   h.active  = true;
   h.type    = type;
 
-  h.moleInner.textContent = info.emoji;
+  // Set mole image
+  var imgSrc = info.img;
+  if (type === 'normal') {
+    imgSrc = NORMAL_MOLE_IMGS[Math.floor(Math.random() * NORMAL_MOLE_IMGS.length)];
+  }
+  h.moleImg.src = imgSrc;
   h.moleInner.classList.remove('whacked');
   // Force reflow before adding visible class
   void h.moleInner.offsetWidth;
