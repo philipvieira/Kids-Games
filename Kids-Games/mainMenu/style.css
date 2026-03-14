@@ -14,15 +14,18 @@
 .splash-content {
   text-align: center;
   animation: pulse 1.6s ease-in-out infinite;
+  width: 90%;
+  max-width: 540px;
+  padding: 0 16px;
 }
 .splash-icon { font-size: 5rem; margin-bottom: 16px; }
 .splash-logo {
   display: block;
   margin: 0 auto 20px;
-  width: 80vw;
+  width: 100%;
   max-width: 500px;
-  max-height: 150px;
   height: auto;
+  max-height: 150px;
   object-fit: contain;
   filter: drop-shadow(0 4px 24px rgba(0,0,0,0.6));
 }
@@ -46,33 +49,41 @@
 /* ─── Reset & Base ──────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-/* iOS Safari ignores background-attachment:fixed on any element.
-   The fix: a real <div id="bg"> in the DOM, position:fixed, z-index:-1.
-   This works on iOS Safari, Android Chrome, Samsung Internet, and desktop. */
-html, body {
+html {
   min-height: 100%;
-  background: transparent;
+  /* overflow-x hidden prevents iOS rubber-band exposing white sides */
+  overflow-x: hidden;
 }
 
+/* background-attachment:fixed is broken on iOS Safari.
+   Using body::before with position:fixed + 100dvw/100dvh is the
+   2025-recommended cross-browser fix (iOS Safari, Chrome, Samsung). */
 body {
   font-family: 'Segoe UI', 'Arial', sans-serif;
   color: #fff;
   min-height: 100vh;
   direction: rtl;
+  position: relative; /* required so ::before stacks correctly on iOS */
+  background: transparent;
 }
 
-body::before { content: none; }
-
-/* ─── Fixed background div (iOS Safari safe) ────────── */
-#bg {
+body::before {
+  content: '';
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100dvw;
+  height: 100dvh;
   z-index: -1;
-  background: url('assets/bg.png') center center / cover no-repeat;
-  /* No background-attachment needed — fixed positioning does the job */
-  -webkit-transform: translateZ(0); /* force GPU layer on iOS */
+  background: url('assets/bg.png') no-repeat center center;
+  background-size: cover;
+  /* GPU compositing layer — prevents repaint flicker on iOS scroll */
+  -webkit-transform: translateZ(0);
   transform: translateZ(0);
 }
+
+/* ─── Fixed background div — no longer needed ───────── */
+#bg { display: none; }
 
 /* ─── Page wrapper ──────────────────────────────────── */
 .page {
@@ -92,10 +103,11 @@ body::before { content: none; }
 .header-logo {
   display: block;
   margin: 0 auto;
-  width: 85vw;
+  /* Use % of container width, not vw — avoids iOS Safari vw overflow bug */
+  width: 100%;
   max-width: 520px;
-  max-height: 160px;
   height: auto;
+  max-height: 160px;
   object-fit: contain;
   filter: drop-shadow(0 4px 20px rgba(0,0,0,0.6));
 }
@@ -226,8 +238,8 @@ body::before { content: none; }
   .page { padding: 20px 10px 40px; }
   .games-grid { gap: 10px; grid-template-columns: repeat(3, 1fr); }
   .card-label { padding: 5px 4px; }
-  .header-logo { width: 88vw; max-height: 120px; }
-  .splash-logo  { width: 85vw; max-height: 110px; }
+  .header-logo { max-height: 110px; }
+  .splash-logo  { max-height: 100px; }
 }
 
 @media (min-width: 700px) {
