@@ -86,7 +86,7 @@ body {
 .powerup-title         { color: #ffe000; font-size: 1rem; margin: 10px 0 6px; }
 .powerup-legend        { display: flex; flex-direction: column; gap: 9px; }
 .powerup-legend-item   { display: flex; align-items: center; gap: 12px; color: #ddd; font-size: 0.92rem; }
-.pu-icon               { font-size: 1.8rem; flex-shrink: 0; width: 2.2rem; text-align: center; }
+.pu-icon               { width: 2.2rem; height: 2.2rem; flex-shrink: 0; object-fit: contain; -webkit-user-drag: none; }
 .pu-x2                 {
   font-size: 1.4rem; font-weight: bold; color: #fff;
   background: linear-gradient(135deg,#f0f,#a0f);
@@ -179,7 +179,7 @@ body {
   background: rgba(0,0,0,.5); border-radius: 8px;
   padding: 3px 8px; border: 1.5px solid rgba(255,255,255,.2);
 }
-.powerup-slot-icon { font-size: 1.1rem; flex-shrink: 0; }
+.powerup-slot-icon { width: 1.1rem; height: 1.1rem; flex-shrink: 0; object-fit: contain; -webkit-user-drag: none; }
 .x2-badge {
   font-size: 0.85rem; font-weight: 900; color: #fff;
   background: linear-gradient(135deg,#f0f,#80f);
@@ -202,7 +202,7 @@ body {
   .hud-level-badge span { font-size: 2rem; }
   .progress-wrap { width: min(700px, 42vw); height: 18px; }
   .progress-flag { font-size: 2rem; right: -28px; }
-  .powerup-slot-icon { font-size: 1.3rem; }
+  .powerup-slot-icon { width: 1.3rem; height: 1.3rem; }
   .x2-badge { font-size: 1.1rem; padding: 2px 7px; }
   .powerup-slot-bar-wrap { width: 65px; }
 }
@@ -244,7 +244,7 @@ body {
   .progress-flag { font-size: 1rem; right: -14px; top: -3px; }
 
   .powerup-slot  { padding: 1px 4px; }
-  .powerup-slot-icon { font-size: 0.78rem; }
+  .powerup-slot-icon { width: 0.78rem; height: 0.78rem; }
   .x2-badge { font-size: 0.65rem; padding: 1px 3px; }
   .powerup-slot-bar-wrap { width: 24px; height: 5px; }
   .powerup-slots { min-height: 16px; gap: 4px; }

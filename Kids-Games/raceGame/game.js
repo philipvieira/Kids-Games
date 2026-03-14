@@ -566,9 +566,9 @@ function rectsOverlap(a, b, loose) {
 const POWERUP_DURATION = 5000;
 
 const POWERUP_META = {
-  speed    : { icon: '⚡',  label: 'מהירות',    barColor: 'linear-gradient(90deg,#4af,#0af)' },
-  invincible: { icon: '🛡️', label: 'חוסן',      barColor: 'linear-gradient(90deg,#ff0,#fa0)' },
-  x2       : { icon: null,  label: 'ניקוד כפול', barColor: 'linear-gradient(90deg,#f0f,#a0f)' },
+  speed    : { img: 'assets/powerup-speed.png',  label: 'מהירות',    barColor: 'linear-gradient(90deg,#4af,#0af)' },
+  invincible: { img: 'assets/powerup-shield.png', label: 'חוסן',      barColor: 'linear-gradient(90deg,#ff0,#fa0)' },
+  x2       : { img: 'assets/powerup-x2.png',      label: 'ניקוד כפול', barColor: 'linear-gradient(90deg,#f0f,#a0f)' },
 };
 
 function activatePowerup(type, ts) {
@@ -593,9 +593,7 @@ function updatePowerupHUD(ts) {
     const pa   = powerupsActive[type];
     const meta = POWERUP_META[type] || { icon: '?', barColor: '#fff' };
     const pct  = Math.max(0, 1 - (ts - pa.startTime) / POWERUP_DURATION);
-    const iconHtml = type === 'x2'
-      ? `<span class="powerup-slot-icon x2-badge">×2</span>`
-      : `<span class="powerup-slot-icon">${meta.icon}</span>`;
+    const iconHtml = `<img class="powerup-slot-icon" src="${meta.img}" alt="${meta.label}" />`;
     return `<div class="powerup-slot">
       ${iconHtml}
       <div class="powerup-slot-bar-wrap">
