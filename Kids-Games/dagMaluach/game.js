@@ -850,6 +850,9 @@ const GameState = (() => {
       AudioManager.resume();
       toMusic();
     });
+    document.getElementById('btn-menu-from-caught').addEventListener('click', () => {
+      toIdle();
+    });
 
     /* Fullscreen */
     document.getElementById('btn-fullscreen').addEventListener('click', () => {
