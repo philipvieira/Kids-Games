@@ -57,22 +57,6 @@ body::before {
   padding: 40px 20px 60px;
 }
 
-/* ─── Stars background ──────────────────────────────── */
-body::before {
-  content: '';
-  position: fixed; inset: 0;
-  background:
-    radial-gradient(1px 1px at 10% 20%, rgba(255,255,255,.6) 0%, transparent 100%),
-    radial-gradient(1px 1px at 30% 60%, rgba(255,255,255,.5) 0%, transparent 100%),
-    radial-gradient(1px 1px at 55% 15%, rgba(255,255,255,.7) 0%, transparent 100%),
-    radial-gradient(1px 1px at 75% 45%, rgba(255,255,255,.5) 0%, transparent 100%),
-    radial-gradient(1px 1px at 90% 80%, rgba(255,255,255,.6) 0%, transparent 100%),
-    radial-gradient(2px 2px at 20% 80%, rgba(255,255,255,.3) 0%, transparent 100%),
-    radial-gradient(2px 2px at 65% 70%, rgba(255,255,255,.3) 0%, transparent 100%),
-    #0a0a1a;
-  z-index: -1;
-}
-
 /* ─── Header ────────────────────────────────────────── */
 .site-header {
   text-align: center;
@@ -111,12 +95,13 @@ body::before {
   padding: 26px 22px;
   text-decoration: none;
   color: #fff;
-  border: 2px solid rgba(255,255,255,.12);
-  box-shadow: 0 8px 32px rgba(0,0,0,.5);
+  border: 2px solid rgba(255,255,255,.2);
+  box-shadow: 0 8px 32px rgba(0,0,0,.4);
   transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
   cursor: pointer;
   position: relative;
   overflow: hidden;
+  backdrop-filter: blur(4px);
 }
 
 .game-card::after {
