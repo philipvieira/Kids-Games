@@ -35,7 +35,7 @@ const NORMAL_MOLE_IMGS = [
 // Bomb mole image variants (picked randomly)
 const BOMB_MOLE_IMGS = [
   'assets/moles/bomb.png',
-  'assets/moles/normal3.png',
+  'assets/moles/bomb2.png',
 ];
 
 // Weights [normal, golden, bomb, fast, triple]
