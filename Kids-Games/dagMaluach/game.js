@@ -830,14 +830,12 @@ const GameState = (() => {
       AudioManager.resume();
       toMusic();
     });
-    document.getElementById('btn-main-menu-winner').addEventListener('click', toIdle);
 
     /* Caught screen buttons */
     document.getElementById('btn-play-again-caught').addEventListener('click', () => {
       AudioManager.resume();
       toMusic();
     });
-    document.getElementById('btn-main-menu-caught').addEventListener('click', toIdle);
 
     /* Fullscreen */
     document.getElementById('btn-fullscreen').addEventListener('click', () => {
