@@ -90,6 +90,15 @@ const GAMES = [
     path:  '../kingTowerGame/index.html',
   },
 
+  {
+    id:    'whackMoleGame',
+    title: 'חבט במכרסם',
+    desc:  'חפרפרות צצות מהחורים — הכה אותן מהר לפני שייעלמו! 3 רמות קושי.',
+    icon:  '🐹',
+    color: 'linear-gradient(135deg, #2d6a18 0%, #56ab2f 50%, #a8e063 100%)',
+    path:  '../whackMoleGame/index.html',
+  },
+
   // ── Add more games below ─────────────────────────────
   // {
   //   id:    'myNewGame',
