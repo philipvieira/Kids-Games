@@ -424,12 +424,7 @@ html, body {
   animation: ended-bounce 0.5s ease forwards;
 }
 
-.winner-subtitle {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--clr-green);
-  margin-top: -8px;
-}
+
 
 /* ── CAUGHT SCREEN ────────────────────────────────────── */
 #screen-caught {

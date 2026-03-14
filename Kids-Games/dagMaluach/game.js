@@ -25,19 +25,20 @@ const SettingsStorage = (() => {
     sound: true,
     voice: true,
     ai: false,
-    cameraPreview: true,
     sensitivity: 5,
   };
 
   function load() {
-    try {
-      const raw = localStorage.getItem(KEY);
-      if (raw) return Object.assign({}, defaults, JSON.parse(raw));
-    } catch (_) {}
+    /*
+     * Always start with defaults each page load so a fresh game
+     * from the main menu always begins with clean settings.
+     * (We intentionally do NOT read from localStorage here.)
+     */
     return Object.assign({}, defaults);
   }
 
   function save(settings) {
+    /* Keep saving so the slider value persists within a single session */
     try { localStorage.setItem(KEY, JSON.stringify(settings)); } catch (_) {}
   }
 
@@ -265,7 +266,6 @@ const AudioManager = (() => {
 const SpeechManager = (() => {
   let voiceEnabled = true;
   let hebrewVoice = null;
-  let voicesLoaded = false;
 
   function findHebrewVoice() {
     const voices = speechSynthesis.getVoices();
@@ -276,10 +276,7 @@ const SpeechManager = (() => {
 
   function init() {
     if (!('speechSynthesis' in window)) return;
-    const set = () => {
-      hebrewVoice = findHebrewVoice();
-      voicesLoaded = true;
-    };
+    const set = () => { hebrewVoice = findHebrewVoice(); };
     if (speechSynthesis.getVoices().length > 0) {
       set();
     } else {
@@ -292,21 +289,20 @@ const SpeechManager = (() => {
     if (!('speechSynthesis' in window)) return;
     speechSynthesis.cancel();
 
-    function makeUtt() {
-      const utt = new SpeechSynthesisUtterance(text);
-      utt.lang = 'he-IL';
-      if (hebrewVoice) utt.voice = hebrewVoice;
-      utt.rate   = 0.85;
-      utt.pitch  = 1.15;
-      utt.volume = 1.0;   /* browser max; boosted further by saying twice */
-      return utt;
-    }
+    const utt = new SpeechSynthesisUtterance(text);
+    utt.lang   = 'he-IL';
+    if (hebrewVoice) utt.voice = hebrewVoice;
+    utt.rate   = 0.85;
+    utt.pitch  = 1.15;
+    utt.volume = 1.0;
 
-    /* Say it once immediately, then again after a short gap for loudness */
-    speechSynthesis.speak(makeUtt());
-    const repeat = makeUtt();
-    repeat.onstart = null;
-    setTimeout(() => speechSynthesis.speak(repeat), 820);
+    /*
+     * iOS Safari requires speechSynthesis to be triggered directly inside a
+     * user-gesture handler OR immediately after one. We attempt to speak once.
+     * The double-speak that was added for loudness caused double-playback on
+     * desktop. Removed — single utterance is correct and loud enough at 1.0.
+     */
+    speechSynthesis.speak(utt);
   }
 
   function setVoiceEnabled(val) { voiceEnabled = val; }
@@ -409,33 +405,44 @@ const MotionDetector = (() => {
   }
 
   async function requestCamera() {
-    try {
-      /* Ask for a higher resolution so distant movement isn't lost */
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width:  { ideal: 640 },
-          height: { ideal: 480 },
-          facingMode: 'user',
-        },
-        audio: false,
-      });
-      return true;
-    } catch (_) {
-      /* Fallback to any available camera */
+    /*
+     * iOS Safari is strict about getUserMedia constraints.
+     * Try progressively simpler constraints so mobile browsers accept them.
+     */
+    const attempts = [
+      { video: { facingMode: 'user' }, audio: false },
+      { video: { facingMode: { ideal: 'user' } }, audio: false },
+      { video: true, audio: false },
+    ];
+    for (const c of attempts) {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        stream = await navigator.mediaDevices.getUserMedia(c);
         return true;
-      } catch (__) {
-        return false;
-      }
+      } catch (_) {}
     }
+    return false;
   }
 
   function attachVideo(videoEl) {
     video = videoEl;
     if (stream && video) {
       video.srcObject = stream;
+      /* Ensure playback starts on mobile (required after srcObject assignment) */
+      video.play().catch(() => {});
     }
+  }
+
+  /* Attach stream to all video elements that are currently in the DOM */
+  function attachAllVideos() {
+    document.querySelectorAll('video').forEach(v => {
+      if (stream) {
+        v.srcObject = stream;
+        v.play().catch(() => {});
+      }
+    });
+    /* Also keep the internal reference pointing to a live element */
+    const active = document.querySelector('.screen.active video');
+    if (active) video = active;
   }
 
   function getCanvas() {
@@ -546,7 +553,7 @@ const MotionDetector = (() => {
     }
   }
 
-  return { requestCamera, attachVideo, startDetecting, stopDetecting, setSensitivity, hasStream, stop };
+  return { requestCamera, attachVideo, attachAllVideos, startDetecting, stopDetecting, setSensitivity, hasStream, stop };
 })();
 
 
@@ -663,11 +670,10 @@ const GameState = (() => {
 
     /* Start AI detection only during freeze */
     if (settings.ai && MotionDetector.hasStream()) {
-      const vid = document.getElementById('camera-video-freeze');
-      if (vid) MotionDetector.attachVideo(vid);
+      /* attachAllVideos ensures the freeze-screen <video> gets the stream on mobile */
+      MotionDetector.attachAllVideos();
       MotionDetector.startDetecting(handleMotionDuringFreeze);
     }
-
     /* Countdown: when it reaches 0 the round resumes */
     CountdownManager.start(5,
       /* onTick */ () => {},
@@ -754,7 +760,8 @@ const GameState = (() => {
       else aiSettings.classList.add('hidden');
     }
 
-    UI.updateCameraPreview(settings.ai && settings.cameraPreview);
+    /* Camera preview is always shown when AI is on — no toggle needed */
+    UI.updateCameraPreview(settings.ai && MotionDetector.hasStream());
     SettingsStorage.save(settings);
   }
 
@@ -789,17 +796,18 @@ const GameState = (() => {
         const ok = await MotionDetector.requestCamera();
         const btn = document.getElementById('toggle-ai');
         if (!ok) {
-          /* Camera denied — turn the toggle back off */
           settings.ai = false;
           if (btn) btn.classList.remove('active');
           applySettings();
         } else {
-          const vid = document.getElementById('camera-video');
-          if (vid) MotionDetector.attachVideo(vid);
+          /* Attach stream to all video elements and show previews */
+          MotionDetector.attachAllVideos();
+          applySettings();
         }
+      } else if (!enabled) {
+        UI.updateCameraPreview(false);
       }
     });
-    bindToggle('toggle-camera-preview', 'cameraPreview', null);
 
     /* Sensitivity slider */
     const slider    = document.getElementById('sensitivity-slider');
@@ -832,6 +840,9 @@ const GameState = (() => {
     document.getElementById('btn-play-again-winner').addEventListener('click', () => {
       AudioManager.resume();
       toMusic();
+    });
+    document.getElementById('btn-menu-from-winner').addEventListener('click', () => {
+      toIdle();
     });
 
     /* Caught screen buttons */
