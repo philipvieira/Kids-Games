@@ -220,10 +220,10 @@ html, body {
 /* Mole layer: clips the mole so it appears to rise from the hole centre */
 .mole-layer {
   position: absolute;
-  /* positioned over the centre-bottom of the hole */
-  left: 15%; right: 15%;
-  bottom: 8%;           /* sits at the hole opening */
-  height: 70%;
+  /* centred over the dark opening of the hole image */
+  left: 20%; right: 20%;
+  top: 15%;             /* start from top of the dark opening */
+  bottom: 20%;          /* end before the bottom leaves */
   overflow: hidden;
   pointer-events: none;
   z-index: 4;
@@ -232,14 +232,14 @@ html, body {
 /* Inner mole — slides up from below */
 .mole-inner {
   position: absolute;
-  bottom: 0; left: 0; right: 0;
+  bottom: -10%; left: 0; right: 0;
   display: flex; align-items: center; justify-content: center;
   font-size: clamp(1.8rem, 7vw, 3.2rem);
-  transform: translateY(110%);  /* hidden below */
+  transform: translateY(120%);  /* hidden below */
   transition: transform 0.13s cubic-bezier(0.34, 1.56, 0.64, 1);
   filter: drop-shadow(0 3px 5px rgba(0,0,0,0.6));
   line-height: 1;
-  padding-bottom: 4px;
+  padding-bottom: 0;
 }
 .mole-inner.visible {
   transform: translateY(0%);
