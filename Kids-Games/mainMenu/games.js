@@ -94,7 +94,7 @@ const GAMES = [
     id:    'whackMoleGame',
     title: 'חבט במכרסם',
     desc:  'חפרפרות צצות מהחורים — הכה אותן מהר לפני שייעלמו! 3 רמות קושי.',
-    icon:  '🐹',
+    icon:  '<img src="../whackMoleGame/assets/moles/triple2.png" style="width:52px;height:52px;object-fit:contain;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.4));" alt="mole"/>',
     color: 'linear-gradient(135deg, #2d6a18 0%, #56ab2f 50%, #a8e063 100%)',
     path:  '../whackMoleGame/index.html',
   },
