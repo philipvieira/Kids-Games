@@ -180,7 +180,7 @@ body::before {
   justify-content: center;
   overflow: hidden;
   position: relative;
-  background-size: 140%;
+  background-size: 100% 100%;
   background-position: center;
   background-repeat: no-repeat;
 }
