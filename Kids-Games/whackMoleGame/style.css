@@ -223,17 +223,20 @@ html, body {
   pointer-events: none;
 }
 
-/* Mole layer: positions the mole over the dark hole opening.
-   overflow is visible upward so the mole's head pops above the rim,
-   but clipped at the bottom so feet stay hidden inside. */
+/* Mole layer: the mole pops up above the hole rim and is clipped at the bottom.
+   We use a clip-path to hide the mole below the hole opening while letting
+   it extend freely upward. */
 .mole-layer {
   position: absolute;
   left: 10%; right: 10%;
   bottom: 30%;        /* base sits at the hole opening */
   top: -80%;          /* extends well above hole so head is fully visible */
-  overflow: visible;  /* allow mole to be seen above the hole rim */
+  overflow: hidden;   /* clips the mole when it slides back down */
   pointer-events: none;
   z-index: 4;
+  /* Allow overflow only on the TOP — achieved by extending the clip region
+     upward with a large padding trick */
+  clip-path: inset(-200% 0 0 0);  /* clips bottom, lets top overflow freely */
 }
 
 /* Inner mole — slides up from below */
