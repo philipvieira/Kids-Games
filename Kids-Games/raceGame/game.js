@@ -42,11 +42,20 @@ let lastDistanceForScore = 0;  // tracks distance already counted into score
 
 // ─── Car type definitions ──────────────────────────────────────
 const CAR_TYPES = {
-  sports:  { label: 'ספורט',    bodyColor: '#ff2222', roofColor: '#880000', wScale: 0.68, hScale: 1.15, shape: 'sports'  },
-  sedan:   { label: 'סדאן',     bodyColor: '#3498db', roofColor: '#1a5f8a', wScale: 0.72, hScale: 1.25, shape: 'sedan'   },
-  suv:     { label: "ג'יפ",     bodyColor: '#2ecc71', roofColor: '#1a7a44', wScale: 0.78, hScale: 1.35, shape: 'suv'     },
-  formula: { label: 'פורמולה',  bodyColor: '#ff9900', roofColor: '#cc6600', wScale: 0.62, hScale: 1.05, shape: 'formula' },
+  sports:  { label: 'ספורט',    bodyColor: '#ff2222', roofColor: '#880000', wScale: 0.68, hScale: 1.15, shape: 'sports',  img: 'assets/car-sports.png'  },
+  sedan:   { label: 'סדאן',     bodyColor: '#3498db', roofColor: '#1a5f8a', wScale: 0.72, hScale: 1.25, shape: 'sedan',   img: 'assets/car-sedan.png'   },
+  suv:     { label: "ג'יפ",     bodyColor: '#2ecc71', roofColor: '#1a7a44', wScale: 0.78, hScale: 1.35, shape: 'suv',     img: 'assets/car-suv.png'     },
+  formula: { label: 'פורמולה',  bodyColor: '#ff9900', roofColor: '#cc6600', wScale: 0.62, hScale: 1.05, shape: 'formula', img: 'assets/car-formula.png' },
 };
+
+// Preload car images — cross-browser (including iOS Safari which needs
+// images fully decoded before drawImage works reliably)
+const CAR_IMAGES = {};
+Object.entries(CAR_TYPES).forEach(([key, def]) => {
+  const im = new Image();
+  im.src = def.img;
+  CAR_IMAGES[key] = im;
+});
 
 // Traffic car variety pool
 const TRAFFIC_VARIANTS = [
@@ -113,12 +122,8 @@ function selectCar(type) {
 
 function renderCarPreviews() {
   Object.keys(CAR_TYPES).forEach(type => {
-    const cvs = document.getElementById(`preview-${type}`);
-    if (!cvs) return;
-    const c   = cvs.getContext('2d');
-    const def = CAR_TYPES[type];
-    c.clearRect(0, 0, 70, 100);
-    drawCarShape(c, 35, 50, 44, 76, def.bodyColor, def.roofColor, def.shape, false, null, 0);
+    const img = document.getElementById(`preview-${type}`);
+    if (img) img.src = CAR_TYPES[type].img;
   });
 }
 
@@ -1085,12 +1090,27 @@ function drawTrafficCars() {
   });
 }
 function drawPlayerCar() {
-  ctx.save();
-  ctx.translate(player.x, player.y);
-  ctx.rotate(Math.PI); // front faces up (direction of travel)
-  drawCarShape(ctx, 0, 0, player.w, player.h,
-    player.bodyColor, player.roofColor, player.shape, true, powerupsActive, frameCount);
-  ctx.restore();
+  const img = CAR_IMAGES[player.carType];
+  if (img && img.complete && img.naturalWidth > 0) {
+    // Draw image centred on player position, same size as the procedural car.
+    // The source images are top-view facing up, so no rotation needed.
+    ctx.save();
+    // Shield / invincibility glow
+    if (powerupsActive.invincible) {
+      ctx.shadowColor = '#00e5ff';
+      ctx.shadowBlur  = 18 + Math.sin(frameCount * 0.2) * 8;
+    }
+    ctx.drawImage(img, player.x - player.w / 2, player.y - player.h / 2, player.w, player.h);
+    ctx.restore();
+  } else {
+    // Fallback to procedural drawing if image hasn't loaded yet
+    ctx.save();
+    ctx.translate(player.x, player.y);
+    ctx.rotate(Math.PI);
+    drawCarShape(ctx, 0, 0, player.w, player.h,
+      player.bodyColor, player.roofColor, player.shape, true, powerupsActive, frameCount);
+    ctx.restore();
+  }
 }
 
 // ─── Universal Car Shape Renderer ─────────────────────────────

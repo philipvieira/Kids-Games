@@ -68,7 +68,13 @@ body {
 .car-option:hover    { border-color: rgba(255,200,0,.5); background: rgba(255,200,0,.08); }
 .car-option.selected { border-color: #ffe000; background: rgba(255,200,0,.15); }
 .car-option span     { color: #eee; font-size: 1rem; font-weight: bold; }
-.car-preview         { display: block; width: 80px; height: 110px; }
+.car-preview {
+  display: block;
+  width: 80px;
+  height: 110px;
+  object-fit: contain;  /* keeps aspect ratio, works on all browsers incl. iOS Safari */
+  -webkit-user-drag: none;
+}
 
 /* Instructions */
 .instructions-box {
