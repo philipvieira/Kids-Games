@@ -367,25 +367,57 @@ const MotionDetector = (() => {
   let sensitivity = 5;
   let debounceTimer = null;
   let debouncing = false;
-  let lastMotionTime = 0;
+  let warmupFrames = 0;
 
   const DEBOUNCE_MS = 1200;
-  const SCALE = 0.25;   /* analyse at 25% resolution for speed */
+  const WARMUP = 8;          /* skip first N frames after detection starts */
 
-  /* Threshold: sensitivity 1–10 → pixel diff threshold 50–8 */
-  function threshold() {
-    return Math.round(50 - (sensitivity - 1) * 4.7);
+  /*
+   * Analysis resolution — kept deliberately low for speed, but we request
+   * a higher-res stream so the browser captures distant detail before we
+   * downsample. Frame comparison works on this canvas size.
+   */
+  const ANALYSIS_W = 160;
+  const ANALYSIS_H = 120;
+
+  /*
+   * Per-pixel difference amplification:
+   * Even when a player is far away they cause small but consistent brightness
+   * shifts across many pixels. We amplify each channel diff with a power
+   * curve so faint changes count more, then threshold.
+   *
+   * sensitivity 1–10:
+   *   perPixelMin  50 → 6   (how large a single-channel diff must be)
+   *   trigger      0.020 → 0.003  (fraction of pixels that must change)
+   */
+  function perPixelMin() {
+    return Math.round(50 - (sensitivity - 1) * 4.9);   /* 50 … 6 */
+  }
+
+  function triggerFraction() {
+    return 0.020 - (sensitivity - 1) * 0.00189;        /* 0.020 … 0.003 */
   }
 
   async function requestCamera() {
     try {
+      /* Ask for a higher resolution so distant movement isn't lost */
       stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 320 }, height: { ideal: 240 }, facingMode: 'user' },
+        video: {
+          width:  { ideal: 640 },
+          height: { ideal: 480 },
+          facingMode: 'user',
+        },
         audio: false,
       });
       return true;
     } catch (_) {
-      return false;
+      /* Fallback to any available camera */
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        return true;
+      } catch (__) {
+        return false;
+      }
     }
   }
 
@@ -404,7 +436,9 @@ const MotionDetector = (() => {
         canvas.style.display = 'none';
         document.body.appendChild(canvas);
       }
-      ctx2d = canvas.getContext('2d');
+      canvas.width  = ANALYSIS_W;
+      canvas.height = ANALYSIS_H;
+      ctx2d = canvas.getContext('2d', { willReadFrequently: true });
     }
     return canvas;
   }
@@ -415,42 +449,58 @@ const MotionDetector = (() => {
       return;
     }
 
-    const w = Math.round(video.videoWidth * SCALE) || 80;
-    const h = Math.round(video.videoHeight * SCALE) || 60;
     const c = getCanvas();
-    c.width = w;
-    c.height = h;
-    ctx2d.drawImage(video, 0, 0, w, h);
+    ctx2d.drawImage(video, 0, 0, ANALYSIS_W, ANALYSIS_H);
+    const current = ctx2d.getImageData(0, 0, ANALYSIS_W, ANALYSIS_H);
 
-    const current = ctx2d.getImageData(0, 0, w, h);
+    /* Skip warmup frames so the detector doesn't false-fire on scene settle */
+    if (warmupFrames < WARMUP) {
+      warmupFrames++;
+      prevImageData = current;
+      animFrame = requestAnimationFrame(analyseFrame);
+      return;
+    }
+
     if (prevImageData) {
-      let diff = 0;
-      const len = current.data.length;
+      let changedPixels = 0;
+      const len  = current.data.length;
+      const minD = perPixelMin();
+
       for (let i = 0; i < len; i += 4) {
-        const dr = Math.abs(current.data[i]   - prevImageData.data[i]);
-        const dg = Math.abs(current.data[i+1] - prevImageData.data[i+1]);
-        const db = Math.abs(current.data[i+2] - prevImageData.data[i+2]);
-        if (dr + dg + db > threshold() * 3) diff++;
+        const dr = Math.abs(current.data[i]     - prevImageData.data[i]);
+        const dg = Math.abs(current.data[i + 1] - prevImageData.data[i + 1]);
+        const db = Math.abs(current.data[i + 2] - prevImageData.data[i + 2]);
+        /*
+         * Count a pixel as "changed" if ANY channel exceeds the minimum,
+         * OR if the combined luminance shift is significant.
+         * This catches subtle uniform darkening/brightening that happens
+         * when a person moves in the background.
+         */
+        const luma = (dr * 0.299 + dg * 0.587 + db * 0.114);
+        if (dr > minD || dg > minD || db > minD || luma > minD * 0.6) {
+          changedPixels++;
+        }
       }
-      const motionLevel = diff / (w * h);
-      const TRIGGER = 0.04 + (10 - sensitivity) * 0.008;
+
+      const motionLevel = changedPixels / (ANALYSIS_W * ANALYSIS_H);
+      const TRIGGER = triggerFraction();
 
       if (motionLevel > TRIGGER && !debouncing) {
         debouncing = true;
-        lastMotionTime = Date.now();
         if (onMotion) onMotion(motionLevel);
         debounceTimer = setTimeout(() => { debouncing = false; }, DEBOUNCE_MS);
       }
 
-      /* Update motion indicator */
+      /* Visual indicator on camera preview */
       const indicator = document.getElementById('motion-indicator');
       if (indicator) {
-        if (motionLevel > TRIGGER * 0.6) {
+        if (motionLevel > TRIGGER * 0.5) {
           indicator.classList.add('active');
-          setTimeout(() => indicator.classList.remove('active'), 200);
+          setTimeout(() => indicator.classList.remove('active'), 180);
         }
       }
     }
+
     prevImageData = current;
     animFrame = requestAnimationFrame(analyseFrame);
   }
@@ -459,6 +509,7 @@ const MotionDetector = (() => {
     active = true;
     onMotion = motionCallback;
     prevImageData = null;
+    warmupFrames = 0;
     if (animFrame) cancelAnimationFrame(animFrame);
     animFrame = requestAnimationFrame(analyseFrame);
   }
@@ -470,6 +521,7 @@ const MotionDetector = (() => {
     prevImageData = null;
     clearTimeout(debounceTimer);
     debouncing = false;
+    warmupFrames = 0;
   }
 
   function setSensitivity(val) { sensitivity = val; }
