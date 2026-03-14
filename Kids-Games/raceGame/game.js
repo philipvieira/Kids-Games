@@ -76,16 +76,16 @@ Object.entries(CAR_TYPES).forEach(([key, def]) => {
 // Traffic car variety pool — each entry maps to a PNG asset
 // wScale/hScale control collision box size relative to laneW
 const TRAFFIC_VARIANTS = [
-  { img: 'assets/traffic-ambulance.png',    wScale: 0.72, hScale: 1.30 },
-  { img: 'assets/traffic-truck.png',        wScale: 0.76, hScale: 1.40 },
-  { img: 'assets/traffic-van.png',          wScale: 0.72, hScale: 1.25 },
-  { img: 'assets/traffic-firetruck.png',    wScale: 0.74, hScale: 1.45 },
-  { img: 'assets/traffic-construction.png', wScale: 0.78, hScale: 1.40 },
-  { img: 'assets/traffic-police.png',       wScale: 0.68, hScale: 1.15 },
-  { img: 'assets/traffic-schoolbus.png',    wScale: 0.76, hScale: 1.35 },
-  { img: 'assets/traffic-taxi.png',         wScale: 0.70, hScale: 1.20 },
-  { img: 'assets/traffic-trashcar.png',     wScale: 0.76, hScale: 1.40 },
-  { img: 'assets/traffic-tractor.png',      wScale: 0.72, hScale: 1.30 },
+  { img: 'assets/traffic-ambulance.png',    wScale: 0.72, hScale: 1.30, flip: true  },
+  { img: 'assets/traffic-truck.png',        wScale: 0.76, hScale: 1.40, flip: true  },
+  { img: 'assets/traffic-van.png',          wScale: 0.72, hScale: 1.25, flip: true  },
+  { img: 'assets/traffic-firetruck.png',    wScale: 0.74, hScale: 1.45, flip: true  },
+  { img: 'assets/traffic-construction.png', wScale: 0.78, hScale: 1.40, flip: true  },
+  { img: 'assets/traffic-police.png',       wScale: 0.68, hScale: 1.15, flip: false },
+  { img: 'assets/traffic-schoolbus.png',    wScale: 0.76, hScale: 1.35, flip: true  },
+  { img: 'assets/traffic-taxi.png',         wScale: 0.70, hScale: 1.20, flip: true  },
+  { img: 'assets/traffic-trashcar.png',     wScale: 0.76, hScale: 1.40, flip: true  },
+  { img: 'assets/traffic-tractor.png',      wScale: 0.72, hScale: 1.30, flip: true  },
 ];
 
 // Preload all traffic images
@@ -304,6 +304,7 @@ function spawnTraffic(initial, initialIdx = 0, initialTotal = 1) {
         h    : carH,
         speed: rand(1.2, 2.5) * cfg.speedMult,
         img  : variant.img,
+        flip : variant.flip,
       });
       placed = true;
       break;
@@ -324,6 +325,7 @@ function spawnTraffic(initial, initialIdx = 0, initialTotal = 1) {
       h    : carH,
       speed: rand(1.2, 2.5) * cfg.speedMult,
       img  : variant.img,
+      flip : variant.flip,
     });
   }
 }
@@ -1145,13 +1147,11 @@ function drawTrafficCars() {
     const img = TRAFFIC_IMAGES[t.img];
     if (img && img.complete && img.naturalWidth > 0) {
       ctx.save();
-      // Rotate 180° around the car centre so the vehicle faces downward (driving toward player)
       ctx.translate(t.x, t.y);
-      ctx.rotate(Math.PI);
+      if (t.flip) ctx.rotate(Math.PI); // flip images that face upward so they face down
       ctx.drawImage(img, -t.w / 2, -t.h / 2, t.w, t.h);
       ctx.restore();
     } else {
-      // Fallback while image loads
       ctx.save();
       ctx.translate(t.x, t.y);
       ctx.rotate(Math.PI);
