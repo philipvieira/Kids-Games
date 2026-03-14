@@ -337,6 +337,7 @@ function onHitHole(idx) {
   if (!h.active) {
     // Empty hole click — lose a heart
     loseHeart(h.el);
+    playHitSound('miss');
     return;
   }
 
@@ -347,6 +348,9 @@ function onHitHole(idx) {
   // Whack animation then retract
   h.moleInner.classList.add('whacked');
   retractMole(idx, false);
+
+  // Play hit sound
+  playHitSound(type);
 
   // Score
   GS.score = Math.max(0, GS.score + pts);
@@ -470,15 +474,70 @@ function updateHearts() {
 }
 
 // ════════════════════════════════════════════════════════════
-// 12. BACKGROUND MUSIC
+// 12. BACKGROUND MUSIC & SOUND FX
 // ════════════════════════════════════════════════════════════
 
 var bgMusic = new Audio('assets/molemusic.mp3');
 bgMusic.loop   = true;
-bgMusic.volume = 0.4;
+bgMusic.volume = 0.35;
 
 function musicPlay()  { bgMusic.play().catch(function(){}); }
 function musicPause() { bgMusic.pause(); }
+
+// Hit sound — generated via Web Audio API (no extra file needed)
+var _audioCtx = null;
+function getAudioCtx() {
+  if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return _audioCtx;
+}
+
+function playHitSound(type) {
+  try {
+    var ctx  = getAudioCtx();
+    var osc  = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    if (type === 'bomb') {
+      // Low thud for bomb
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(120, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(40, ctx.currentTime + 0.18);
+      gain.gain.setValueAtTime(0.9, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.22);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.22);
+    } else if (type === 'golden') {
+      // High cheerful ping for golden
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.08);
+      gain.gain.setValueAtTime(0.9, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.25);
+    } else if (type === 'miss') {
+      // Low dull thud for miss
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(180, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(80, ctx.currentTime + 0.15);
+      gain.gain.setValueAtTime(0.7, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.18);
+    } else {
+      // Standard whack pop
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(520, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(220, ctx.currentTime + 0.12);
+      gain.gain.setValueAtTime(0.85, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.15);
+    }
+  } catch(e) {}
+}
 
 // ════════════════════════════════════════════════════════════
 // 13. TIMER, COUNTDOWN & SPAWN LOOP
