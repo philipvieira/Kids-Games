@@ -123,6 +123,12 @@ html, body {
 .modal-title { font-size: 1.4rem; font-weight: 900; color: #fff380; text-align: center; }
 .how-row { display: flex; align-items: center; gap: 10px; color: #fff; font-size: 0.95rem; }
 .hi { font-size: 1.4rem; min-width: 32px; text-align: center; }
+.hi-img {
+  width: 44px; height: 44px;
+  object-fit: contain;
+  flex-shrink: 0;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+}
 
 /* ═══════════════════════════════════
    HUD
