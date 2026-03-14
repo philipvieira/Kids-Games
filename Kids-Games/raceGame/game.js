@@ -43,13 +43,9 @@ let roadScrollY = 0;
 let roadSpriteH = 0;   // set in resize(), equals H
 
 const ROAD_IMG_1 = new Image();
-const ROAD_IMG_2 = new Image();
 let roadImagesLoaded = 0;
-function _onRoadImgLoad() { roadImagesLoaded++; }
-ROAD_IMG_1.onload = _onRoadImgLoad;
-ROAD_IMG_2.onload = _onRoadImgLoad;
+ROAD_IMG_1.onload = () => { roadImagesLoaded++; };
 ROAD_IMG_1.src = 'assets/road1.png';
-ROAD_IMG_2.src = 'assets/road2.png';
 let powerupsActive = {};   // { speed: {endTime, startTime}, invincible: {...}, x2: {...} }
 let loopId = null;
 let frameCount = 0;
@@ -76,16 +72,16 @@ Object.entries(CAR_TYPES).forEach(([key, def]) => {
 // Traffic car variety pool — each entry maps to a PNG asset
 // wScale/hScale control collision box size relative to laneW
 const TRAFFIC_VARIANTS = [
-  { img: 'assets/traffic-ambulance.png',    wScale: 0.72, hScale: 1.30, flip: true  },
-  { img: 'assets/traffic-truck.png',        wScale: 0.76, hScale: 1.40, flip: true  },
-  { img: 'assets/traffic-van.png',          wScale: 0.72, hScale: 1.25, flip: true  },
-  { img: 'assets/traffic-firetruck.png',    wScale: 0.74, hScale: 1.45, flip: true  },
-  { img: 'assets/traffic-construction.png', wScale: 0.78, hScale: 1.40, flip: true  },
-  { img: 'assets/traffic-police.png',       wScale: 0.68, hScale: 1.15, flip: false },
-  { img: 'assets/traffic-schoolbus.png',    wScale: 0.76, hScale: 1.35, flip: true  },
-  { img: 'assets/traffic-taxi.png',         wScale: 0.70, hScale: 1.20, flip: true  },
-  { img: 'assets/traffic-trashcar.png',     wScale: 0.76, hScale: 1.40, flip: true  },
-  { img: 'assets/traffic-tractor.png',      wScale: 0.72, hScale: 1.30, flip: true  },
+  { img: 'assets/traffic-ambulance.png',    wScale: 0.72, hScale: 1.30 },
+  { img: 'assets/traffic-truck.png',        wScale: 0.76, hScale: 1.40 },
+  { img: 'assets/traffic-van.png',          wScale: 0.72, hScale: 1.25 },
+  { img: 'assets/traffic-firetruck.png',    wScale: 0.74, hScale: 1.45 },
+  { img: 'assets/traffic-construction.png', wScale: 0.78, hScale: 1.40 },
+  { img: 'assets/traffic-police.png',       wScale: 0.68, hScale: 1.15 },
+  { img: 'assets/traffic-schoolbus.png',    wScale: 0.76, hScale: 1.35 },
+  { img: 'assets/traffic-taxi.png',         wScale: 0.70, hScale: 1.20 },
+  { img: 'assets/traffic-trashcar.png',     wScale: 0.76, hScale: 1.40 },
+  { img: 'assets/traffic-tractor.png',      wScale: 0.72, hScale: 1.30 },
 ];
 
 // Preload all traffic images
@@ -304,7 +300,6 @@ function spawnTraffic(initial, initialIdx = 0, initialTotal = 1) {
         h    : carH,
         speed: rand(1.2, 2.5) * cfg.speedMult,
         img  : variant.img,
-        flip : variant.flip,
       });
       placed = true;
       break;
@@ -325,7 +320,6 @@ function spawnTraffic(initial, initialIdx = 0, initialTotal = 1) {
       h    : carH,
       speed: rand(1.2, 2.5) * cfg.speedMult,
       img  : variant.img,
-      flip : variant.flip,
     });
   }
 }
@@ -438,7 +432,6 @@ function update(ts) {
   scrollY     = (scrollY     + speed) % H;
   bgOffset    = (bgOffset    + speed * 0.4) % H;
   roadScrollY = (roadScrollY + speed) % H;
-  _checkRoadCycle(prevRoadScrollY, roadScrollY);
 
   // Score: add distance delta each frame, multiplied by x2 if active.
   // Using a delta prevents the score from dropping when x2 expires.
@@ -647,19 +640,14 @@ function draw() {
 let _roadCycle = 0;
 function drawRoadSprites() {
   const roadW = roadRight - roadLeft;
-  const sh    = H; // sprite drawn height = full screen height
+  const sh    = H;
 
-  const imgA = (_roadCycle % 2 === 0) ? ROAD_IMG_1 : ROAD_IMG_2;
-  const imgB = (_roadCycle % 2 === 0) ? ROAD_IMG_2 : ROAD_IMG_1;
-
-  // Clip drawing to the road area so the sprite doesn't bleed over city/beach
   ctx.save();
   ctx.beginPath();
   ctx.rect(roadLeft, 0, roadW, H);
   ctx.clip();
 
   if (roadImagesLoaded === 0) {
-    // Fallback while images load
     ctx.fillStyle = '#303030';
     ctx.fillRect(roadLeft, 0, roadW, H);
     ctx.restore();
@@ -668,18 +656,15 @@ function drawRoadSprites() {
   }
 
   const offset = roadScrollY;
-  // Tile B: the main visible tile
-  ctx.drawImage(imgB, roadLeft, offset, roadW, sh);
-  // Tile A: scrolls in from above
-  ctx.drawImage(imgA, roadLeft, offset - sh, roadW, sh);
+  // Both tiles use road1.png — seamless infinite scroll
+  ctx.drawImage(ROAD_IMG_1, roadLeft, offset,      roadW, sh);
+  ctx.drawImage(ROAD_IMG_1, roadLeft, offset - sh, roadW, sh);
 
   ctx.restore();
 }
 
-// Called on each wrap of roadScrollY so images alternate
-function _checkRoadCycle(prevOffset, newOffset) {
-  if (prevOffset > newOffset) _roadCycle++; // wrapped
-}
+// Called on each wrap of roadScrollY — kept for reference, no longer used
+// function _checkRoadCycle(prevOffset, newOffset) { ... }
 
 // Plain canvas fallback while images load
 function drawRoadFallback() {
@@ -1148,7 +1133,7 @@ function drawTrafficCars() {
     if (img && img.complete && img.naturalWidth > 0) {
       ctx.save();
       ctx.translate(t.x, t.y);
-      if (t.flip) ctx.rotate(Math.PI); // flip images that face upward so they face down
+      ctx.rotate(Math.PI); // all traffic images face up; rotate so they face down (toward player)
       ctx.drawImage(img, -t.w / 2, -t.h / 2, t.w, t.h);
       ctx.restore();
     } else {
