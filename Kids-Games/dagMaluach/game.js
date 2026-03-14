@@ -261,6 +261,96 @@ const AudioManager = (() => {
 
 
 /* ═══════════════════════════════════
+   DagSoundPlayer
+   Plays the recorded "דג מלוח!" audio file.
+   Strategy (best cross-browser coverage):
+     1. Web Audio API decodeAudioData (works on all modern browsers
+        including iOS Safari, Android Chrome, Samsung Internet)
+     2. HTMLAudioElement fallback if Web Audio decode fails
+     3. SpeechSynthesis last resort if both fail
+   We pre-decode the file on first use so playback is instant.
+═══════════════════════════════════ */
+const DagSoundPlayer = (() => {
+  let decodedBuffer = null;   /* Web Audio decoded PCM buffer */
+  let loadState     = 'idle'; /* idle | loading | ready | failed */
+  let voiceEnabled  = true;
+
+  /* Paths: OGG first (Chrome/Android/Firefox), MP3 fallback (Safari/iOS) */
+  const SOURCES = [
+    'assets/dagmaluach.ogg',
+    'assets/dagmaluach.mp3',
+  ];
+
+  /*
+   * Pre-load: fetch + decode via Web Audio so playback needs zero extra time.
+   * Called once on first user gesture so iOS audio session is already open.
+   */
+  async function preload() {
+    if (loadState !== 'idle') return;
+    loadState = 'loading';
+
+    const ctx = AudioManager._ctx();
+    if (!ctx) { loadState = 'failed'; return; }
+
+    for (const src of SOURCES) {
+      try {
+        const resp = await fetch(src);
+        if (!resp.ok) continue;
+        const arrayBuf = await resp.arrayBuffer();
+        decodedBuffer = await ctx.decodeAudioData(arrayBuf);
+        loadState = 'ready';
+        return;
+      } catch (_) {}
+    }
+    loadState = 'failed';
+  }
+
+  function play() {
+    if (!voiceEnabled) return;
+
+    if (loadState === 'ready' && decodedBuffer) {
+      const ctx    = AudioManager._ctx();
+      const master = AudioManager._master();
+      if (ctx && master) {
+        const src = ctx.createBufferSource();
+        src.buffer = decodedBuffer;
+        src.connect(master);
+        src.start(0);
+        return;
+      }
+    }
+
+    /* Fallback 1: plain HTMLAudioElement */
+    if (loadState === 'failed' || loadState === 'idle') {
+      for (const src of SOURCES) {
+        const a = new Audio(src);
+        const p = a.play();
+        if (p) {
+          p.then(() => {}).catch(() => {
+            /* Try next source */
+            if (src === SOURCES[0]) {
+              const a2 = new Audio(SOURCES[1]);
+              a2.play().catch(() => SpeechManager.say('דג מלוח!'));
+            } else {
+              SpeechManager.say('דג מלוח!');
+            }
+          });
+          return;
+        }
+      }
+    }
+
+    /* Fallback 2: SpeechSynthesis (last resort, for very old browsers) */
+    SpeechManager.say('דג מלוח!');
+  }
+
+  function setVoiceEnabled(val) { voiceEnabled = val; }
+
+  return { preload, play, setVoiceEnabled };
+})();
+
+
+/* ═══════════════════════════════════
    SpeechManager
 ═══════════════════════════════════ */
 const SpeechManager = (() => {
@@ -797,8 +887,8 @@ const GameState = (() => {
     AudioManager.stopMusic();
     AudioManager.playStopSound();
 
-    /* Voice: "דג מלוח!" after stop sound */
-    setTimeout(() => SpeechManager.say('דג מלוח!'), 300);
+    /* Play "דג מלוח!" audio after stop sound */
+    setTimeout(() => DagSoundPlayer.play(), 300);
 
     UI.showScreen('freeze');
 
@@ -886,6 +976,7 @@ const GameState = (() => {
     AudioManager.setMusicEnabled(settings.music);
     AudioManager.setSoundEnabled(settings.sound);
     SpeechManager.setVoiceEnabled(settings.voice);
+    DagSoundPlayer.setVoiceEnabled(settings.voice);
     MotionDetector.setSensitivity(settings.sensitivity);
 
     const aiSettings = document.getElementById('ai-settings');
@@ -959,6 +1050,7 @@ const GameState = (() => {
       AudioManager.ensureContext();
       AudioManager.resume();
       SpeechManager.warmUp();
+      DagSoundPlayer.preload();
       toPregame();
     });
 
@@ -971,6 +1063,7 @@ const GameState = (() => {
     document.getElementById('btn-play-again-winner').addEventListener('click', () => {
       AudioManager.resume();
       SpeechManager.warmUp();
+      DagSoundPlayer.preload();
       toPregame();
     });
     document.getElementById('btn-menu-from-winner').addEventListener('click', () => {
@@ -981,6 +1074,7 @@ const GameState = (() => {
     document.getElementById('btn-play-again-caught').addEventListener('click', () => {
       AudioManager.resume();
       SpeechManager.warmUp();
+      DagSoundPlayer.preload();
       toPregame();
     });
     document.getElementById('btn-menu-from-caught').addEventListener('click', () => {
