@@ -539,6 +539,7 @@ function update(ts) {
       powerups.splice(i, 1);
       const burstColor = p.type === 'speed' ? '#4af' : p.type === 'x2' ? '#f0f' : '#ff0';
       spawnBurst(p.x, p.y, burstColor);
+      playPowerupSound();
     }
   }
 
@@ -548,6 +549,7 @@ function update(ts) {
       if (rectsOverlap(player, t, false)) {  // tight hit for traffic collision
         gameRunning = false;
         clearInterval(timerInterval);
+        playCrashSound();
         spawnBurst(player.x, player.y, '#ff4400');
         setTimeout(() => loseLife('אוי! התנגשת במכונית! 💥'), 300);
         return;
@@ -1544,8 +1546,79 @@ function renderHighScores() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  MUSIC
+//  SFX  (Web Audio API — generated, no external files)
 // ═══════════════════════════════════════════════════════════════
+const _sfxCtx = (() => {
+  try { return new (window.AudioContext || window.webkitAudioContext)(); }
+  catch (e) { return null; }
+})();
+
+// Unlock the AudioContext on the first user gesture (required by iOS Safari)
+function _unlockSfxCtx() {
+  if (_sfxCtx && _sfxCtx.state === 'suspended') {
+    _sfxCtx.resume().catch(() => {});
+  }
+}
+document.addEventListener('touchstart', _unlockSfxCtx, { once: true, passive: true });
+document.addEventListener('click',      _unlockSfxCtx, { once: true });
+
+function _sfxPlay(buildFn) {
+  if (!_sfxCtx) return;
+  if (_sfxCtx.state === 'suspended') _sfxCtx.resume().catch(() => {});
+  buildFn(_sfxCtx);
+}
+
+// Crash: short noise burst + descending pitch drop
+function playCrashSound() {
+  _sfxPlay(ctx => {
+    const now = ctx.currentTime;
+    // Noise layer
+    const bufLen  = ctx.sampleRate * 0.4;
+    const buffer  = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+    const data    = buffer.getChannelData(0);
+    for (let i = 0; i < bufLen; i++) data[i] = (Math.random() * 2 - 1);
+    const noise   = ctx.createBufferSource();
+    noise.buffer  = buffer;
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.setValueAtTime(0.6, now);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+    noise.connect(noiseGain); noiseGain.connect(ctx.destination);
+    noise.start(now); noise.stop(now + 0.4);
+
+    // Pitch-drop tone
+    const osc  = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(320, now);
+    osc.frequency.exponentialRampToValueAtTime(40, now + 0.35);
+    gain.gain.setValueAtTime(0.55, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(now); osc.stop(now + 0.35);
+  });
+}
+
+// Powerup pickup: bright ascending 3-note chime
+function playPowerupSound() {
+  _sfxPlay(ctx => {
+    const now   = ctx.currentTime;
+    const notes = [523, 784, 1047]; // C5, G5, C6
+    notes.forEach((freq, i) => {
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      const t = now + i * 0.1;
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.45, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(t); osc.stop(t + 0.18);
+    });
+  });
+}
+
+
 // iOS Safari requires:
 //   1. An AudioContext (or Audio element) to be "unlocked" by a silent
 //      play triggered from a user-gesture touchstart.
