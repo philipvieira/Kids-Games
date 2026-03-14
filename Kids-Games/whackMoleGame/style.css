@@ -223,7 +223,7 @@ html, body {
   /* centred over the dark opening of the hole image */
   left: 22%; right: 22%;
   top: 10%;
-  bottom: 35%;          /* raise it up — away from the bottom grass/rim */
+  bottom: 45%;          /* raise it up — away from the bottom grass/rim */
   overflow: hidden;
   pointer-events: none;
   z-index: 4;
