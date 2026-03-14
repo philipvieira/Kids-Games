@@ -75,12 +75,13 @@ const AudioManager = (() => {
     ensureContext();
     const now = ctx.currentTime;
 
+    /* +30 % louder: was 0.4 → 0.52, was 0.35 → 0.46 */
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = 'square';
     osc.frequency.setValueAtTime(880, now);
     osc.frequency.exponentialRampToValueAtTime(220, now + 0.22);
-    gain.gain.setValueAtTime(0.4, now);
+    gain.gain.setValueAtTime(0.52, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
     osc.connect(gain);
     gain.connect(masterGain);
@@ -93,7 +94,7 @@ const AudioManager = (() => {
     osc2.type = 'square';
     osc2.frequency.setValueAtTime(330, now + 0.18);
     osc2.frequency.setValueAtTime(165, now + 0.30);
-    gain2.gain.setValueAtTime(0.35, now + 0.18);
+    gain2.gain.setValueAtTime(0.46, now + 0.18);
     gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.42);
     osc2.connect(gain2);
     gain2.connect(masterGain);
@@ -290,13 +291,22 @@ const SpeechManager = (() => {
     if (!voiceEnabled) return;
     if (!('speechSynthesis' in window)) return;
     speechSynthesis.cancel();
-    const utt = new SpeechSynthesisUtterance(text);
-    utt.lang = 'he-IL';
-    if (hebrewVoice) utt.voice = hebrewVoice;
-    utt.rate = 0.88;
-    utt.pitch = 1.1;
-    utt.volume = 1.0;
-    speechSynthesis.speak(utt);
+
+    function makeUtt() {
+      const utt = new SpeechSynthesisUtterance(text);
+      utt.lang = 'he-IL';
+      if (hebrewVoice) utt.voice = hebrewVoice;
+      utt.rate   = 0.85;
+      utt.pitch  = 1.15;
+      utt.volume = 1.0;   /* browser max; boosted further by saying twice */
+      return utt;
+    }
+
+    /* Say it once immediately, then again after a short gap for loudness */
+    speechSynthesis.speak(makeUtt());
+    const repeat = makeUtt();
+    repeat.onstart = null;
+    setTimeout(() => speechSynthesis.speak(repeat), 820);
   }
 
   function setVoiceEnabled(val) { voiceEnabled = val; }
@@ -602,16 +612,23 @@ const GameState = (() => {
   let state = STATES.IDLE;
   let settings = SettingsStorage.load();
   let musicPhaseTimer = null;
+  let roundCount = 0;   /* tracks how many music phases have started */
 
   /* ── Helpers ─── */
   function randomMusicDuration() {
-    return (3 + Math.random() * 5) * 1000;  /* 3–8 seconds */
+    /* First round : 1.5–3 s  — freeze happens quickly so kids learn the cue fast
+       Second round: 2–5 s    — a bit more suspense
+       Third+ rounds: 3–8 s   — full random range */
+    if (roundCount === 1) return (1.5 + Math.random() * 1.5) * 1000;
+    if (roundCount === 2) return (2   + Math.random() * 3)   * 1000;
+    return                       (3   + Math.random() * 5)   * 1000;
   }
 
 
   /* ── State transitions ─── */
   function toIdle() {
     state = STATES.IDLE;
+    roundCount = 0;
     CountdownManager.stop();
     MotionDetector.stopDetecting();
     AudioManager.stopMusic();
@@ -621,6 +638,7 @@ const GameState = (() => {
 
   function toMusic() {
     state = STATES.MUSIC;
+    roundCount++;
     clearTimeout(musicPhaseTimer);
     MotionDetector.stopDetecting();
     AudioManager.startMusic();
